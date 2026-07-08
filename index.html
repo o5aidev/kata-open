@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<title>型オープン — 全部見せるX投稿づくり</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #1a2233; --panel2: #232e45; --line: #2e3b58;
+    --text: #e8ecf4; --sub: #9aa7c0; --accent: #4da3ff; --accent2: #39c98e;
+    --warn: #ffb454; --danger: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.7; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 80px; }
+  h1 { font-size: 26px; margin: 8px 0 2px; }
+  h2 { font-size: 17px; margin: 0 0 12px; color: var(--accent); }
+  .tagline { color: var(--sub); margin: 0 0 6px; }
+  .kangen { font-size: 13px; color: var(--sub); border-left: 3px solid var(--accent2);
+    padding-left: 10px; margin: 14px 0 24px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px; margin-bottom: 18px; }
+  label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+  input[type=password], input[type=text], textarea, select {
+    width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px; font-size: 14px; font-family: inherit; }
+  textarea { min-height: 90px; resize: vertical; }
+  button { background: var(--accent); color: #08101f; border: 0; border-radius: 8px;
+    padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  button.sub { background: var(--panel2); color: var(--text); border: 1px solid var(--line); font-weight: 400; }
+  button.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); font-weight: 400; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge { font-size: 12px; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--sub); }
+  .badge.ok { border-color: var(--accent2); color: var(--accent2); }
+  .kata-item { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; margin: 8px 0; }
+  .kata-item summary { cursor: pointer; font-weight: 700; }
+  .kata-item pre { white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--sub); margin: 8px 0; }
+  .draft { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; margin: 10px 0; white-space: pre-wrap; font-size: 15px; }
+  .draft .tools { text-align: right; margin-top: 8px; }
+  .hint { font-size: 12px; color: var(--sub); }
+  .hint a, .kangen a, footer a { color: var(--accent); }
+  .err { color: var(--danger); font-size: 13px; white-space: pre-wrap; }
+  .spin { display: inline-block; animation: r 1s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 12px; max-width: 700px; width: 92%; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog pre { white-space: pre-wrap; font-size: 12.5px; background: var(--panel2);
+    padding: 12px; border-radius: 8px; max-height: 60vh; overflow-y: auto; }
+  footer { color: var(--sub); font-size: 13px; text-align: center; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>型オープン</h1>
+  <p class="tagline">伸びてるポストの「構造」だけ借りて、あなたの「型」で書く。X投稿づくりツール。</p>
+  <p class="kangen">
+    このツールは<strong>無料・無条件</strong>で使えます。登録も、リポストも、感想投稿も要りません。<br>
+    プロンプトを含む全コードは <a href="https://github.com/o5aidev/kata-open" target="_blank" rel="noopener">GitHub で公開</a>。
+    サーバーは存在せず、あなたのAPIキーはブラウザから Anthropic 以外のどこにも送信されません（このページのソースで検証できます）。
+  </p>
+</header>
+
+<section id="sec-settings">
+  <h2>1. 設定（初回のみ）</h2>
+  <div class="row">
+    <span id="key-badge" class="badge">キー未設定</span>
+    <span class="hint"><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> でAPIキーを発行（要 $5〜 クレジット）。生成1回あたり数円です。</span>
+  </div>
+  <label for="api-key">Anthropic APIキー（sk-ant- で始まる）</label>
+  <input type="password" id="api-key" placeholder="sk-ant-...">
+  <label for="model">使用モデル</label>
+  <select id="model">
+    <option value="claude-opus-4-8">Claude Opus 4.8 — 高品質（約3〜5円/回）</option>
+    <option value="claude-sonnet-5">Claude Sonnet 5 — 低コスト（約1〜2円/回）</option>
+  </select>
+  <p class="hint">キーとデータはこのブラウザの localStorage にのみ保存されます。共有PCでは使い終わったら「全データ削除」を。</p>
+  <div class="row" style="margin-top:10px">
+    <button id="save-settings">保存</button>
+    <button class="sub" id="export-data">データ書き出し</button>
+    <button class="sub" id="import-data">データ読み込み</button>
+    <button class="danger" id="wipe-data">全データ削除</button>
+    <input type="file" id="import-file" accept=".json" hidden>
+  </div>
+</section>
+
+<section id="sec-kata">
+  <h2>2. あなたの「型」</h2>
+  <p class="hint">型 = 口調・一人称・改行のリズム・構成の指示書。手で書くか、過去ポストからAIで抽出できます。プリセット3種入り。</p>
+  <div id="kata-list"></div>
+  <label for="kata-name">型の名前</label>
+  <input type="text" id="kata-name" placeholder="例）結論バサッと型">
+  <label for="kata-body">型の内容</label>
+  <textarea id="kata-body" placeholder="例）一人称は「俺」。タメ口・短文。1行目で結論→理由を2つ→最後に問いかけ。絵文字なし。改行多め。"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="add-kata">＋ 型を追加</button>
+  </div>
+  <details style="margin-top:14px">
+    <summary class="hint" style="cursor:pointer">過去ポストからAIで型を抽出する</summary>
+    <label for="past-posts">過去ポストを改行2つ区切りで数本貼り付け</label>
+    <textarea id="past-posts"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="extract-kata">抽出する</button>
+      <span id="extract-status" class="hint"></span>
+    </div>
+  </details>
+</section>
+
+<section id="sec-knowledge">
+  <h2>3. 共通ナレッジ（任意）</h2>
+  <label for="knowledge">発信テーマ・実績・キャラ設定など、毎回の生成に効かせたい前提</label>
+  <textarea id="knowledge" placeholder="例）建設業向けAI導入を発信。実績：自社をAIで運営中。読者は30〜50代の中小企業経営者。"></textarea>
+</section>
+
+<section id="sec-generate">
+  <h2>4. 生成する</h2>
+  <label for="buzz-post">参考にしたい伸びているポスト（内容は流用せず、構造だけ借ります）</label>
+  <textarea id="buzz-post"></textarea>
+  <div class="row" style="margin-top:8px">
+    <label style="margin:0" for="gen-kata">使う型</label>
+    <select id="gen-kata" style="width:auto;min-width:180px"></select>
+    <label style="margin:0" for="gen-count">案の数</label>
+    <select id="gen-count" style="width:auto">
+      <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+    </select>
+    <button id="generate">生成する</button>
+    <button class="sub" id="show-prompt">送信されるプロンプトを見る</button>
+  </div>
+  <p id="gen-status" class="hint"></p>
+  <p id="gen-error" class="err"></p>
+  <div id="drafts"></div>
+</section>
+
+<footer>
+  <p>教わった恩は、次の人へ。 / <a href="https://github.com/o5aidev/kata-open" target="_blank" rel="noopener">ソースコード</a> ・ <a href="https://x.com/Tokyo_555_" target="_blank" rel="noopener">@Tokyo_555_</a></p>
+</footer>
+
+<dialog id="prompt-dialog">
+  <h2 style="margin-top:0">これがAPIに送信されるプロンプトの全文です</h2>
+  <p class="hint">隠している「秘伝のタレ」はありません。自由にコピーして、自分で改造してください。</p>
+  <pre id="prompt-preview"></pre>
+  <div class="row" style="justify-content:flex-end;margin-top:10px">
+    <button class="sub" onclick="document.getElementById('prompt-dialog').close()">閉じる</button>
+  </div>
+</dialog>
+
+</div>
+<script>
+"use strict";
+// ============================================================
+// 型オープン — 全コード公開・完全クライアントサイド
+// APIキーは https://api.anthropic.com にのみ送信されます。
+// （このページに他の通信先が存在しないことは、上部の
+//   Content-Security-Policy と、このファイル全文で検証できます）
+// ============================================================
+
+const STORE_KEY = "kataopen_v1";
+const API_URL = "https://api.anthropic.com/v1/messages";
+const API_VERSION = "2023-06-01";
+
+// ---------- プリセット型（自由に消して自分の型に置き換えてOK） ----------
+const PRESETS = [
+  { id: "p1", name: "【プリセット】結論先出し型",
+    body: "一人称は「私」。です・ます調。\n1行目：結論を一言で言い切る（フック）。\n2〜3行目：理由や具体例を短文で2つ。\n最終行：読者への問いかけ、または「保存して見返してください」等の行動の呼びかけ。\n1文は短く。1文ごとに改行。絵文字は使わない。全体で140字以内。" },
+  { id: "p2", name: "【プリセット】実体験型",
+    body: "一人称は「僕」。少しくだけた丁寧語。\n1行目：過去の失敗や意外な体験を告白する（例：「〇〇で失敗しました」）。\n中盤：そこから学んだことを1つだけ、具体的に。\n最終行：同じ状況の読者への一言アドバイス。\n体験談はナレッジに書かれた事実のみ使用。誇張しない。絵文字は文末に1つまで。" },
+  { id: "p3", name: "【プリセット】問いかけ型",
+    body: "一人称なし。断定を避けた柔らかい語り口。\n1行目：読者の常識を揺さぶる問いかけ（例：「なぜ〇〇なのに△△なのか？」）。\n中盤：その問いへの視点を2つ提示。\n最終行：答えを言い切らず、読者に考える余白を残す。\n改行多め、1ブロック2行以内。絵文字・記号は使わない。" },
+];
+
+// ---------- プロンプト（ここが全部見せたい中身です） ----------
+function buildGeneratePrompt(kata, knowledge, buzzPost, count) {
+  const system = [
+    "あなたはX（旧Twitter）投稿の専門ライターです。",
+    "",
+    "# やること",
+    `「参考ポスト」の**構造だけ**を分析し、「あなたの型」と「共通ナレッジ」に沿った完全オリジナルの投稿を${count}案つくります。`,
+    "",
+    "# 絶対に守るルール",
+    "1. 参考ポストから借りてよいのは構造のみ（フックの種類・展開の順番・改行のリズム・締めの機能）。",
+    "2. 参考ポストの語句・固有名詞・数字・体験談は一切流用しない。内容はすべて「型」と「共通ナレッジ」から生成する。",
+    "3. 型に書かれた口調・一人称・絵文字・文字数のルールを厳守する。",
+    "4. 事実を捏造しない。ナレッジにない実績・数字をでっち上げない。数字や固有名詞が必要な構造なら【ここに実績を入れる】のようにプレースホルダーにする。",
+    "5. 各案は互いに切り口を変える（同じ内容の言い換えを並べない）。",
+  ].join("\n");
+  const user = [
+    "## あなたの型",
+    kata,
+    "",
+    "## 共通ナレッジ",
+    knowledge || "（未設定。一般的な内容で書き、実績が必要な箇所はプレースホルダーにする）",
+    "",
+    "## 参考ポスト（構造だけ借りる）",
+    buzzPost,
+  ].join("\n");
+  return { system, user };
+}
+
+const EXTRACT_PROMPT = [
+  "以下はあるユーザーの過去のX投稿です。この人の文体プロファイル（型）を抽出してください。",
+  "",
+  "抽出する観点：",
+  "- 一人称・口調・語尾",
+  "- 文の長さと改行のリズム",
+  "- 絵文字・記号の使い方",
+  "- よく使う構成（1行目の入り方 → 展開 → 締め方）",
+  "- 避けていそうな表現",
+  "",
+  "出力は箇条書きで、そのまま「投稿生成AIへの指示書」として使える命令形で書いてください。",
+].join("\n");
+
+// ---------- 状態管理（localStorageのみ） ----------
+let state = load();
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* 壊れていたら初期化 */ }
+  return { apiKey: "", model: "claude-opus-4-8", knowledge: "", katas: [...PRESETS] };
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+// ---------- API呼び出し（ブラウザ→Anthropic直通・中継なし） ----------
+async function callClaude(system, user, schema, maxTokens) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": state.apiKey,
+      "anthropic-version": API_VERSION,
+      // ブラウザから直接呼ぶための公式ヘッダ。キーが第三者サーバーを
+      // 経由しない代わりに、キーの管理責任は利用者自身にあります。
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: state.model,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: "user", content: user }],
+      output_config: { format: { type: "json_schema", schema } },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = body?.error?.message || res.statusText;
+    if (res.status === 401) throw new Error("APIキーが無効です。設定を確認してください。");
+    if (res.status === 429) throw new Error("リクエスト過多です。少し待ってから再実行してください。");
+    if (res.status === 400 && /credit/i.test(msg)) throw new Error("クレジット残高が不足しています。Anthropic Consoleでチャージしてください。");
+    throw new Error(`APIエラー (${res.status}): ${msg}`);
+  }
+  const data = await res.json();
+  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  return JSON.parse(text);
+}
+
+const GEN_SCHEMA = {
+  type: "object",
+  properties: { drafts: { type: "array", items: { type: "string" } } },
+  required: ["drafts"], additionalProperties: false,
+};
+const EXTRACT_SCHEMA = {
+  type: "object",
+  properties: { name: { type: "string" }, body: { type: "string" } },
+  required: ["name", "body"], additionalProperties: false,
+};
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+
+function renderSettings() {
+  $("api-key").value = state.apiKey;
+  $("model").value = state.model;
+  $("knowledge").value = state.knowledge;
+  const b = $("key-badge");
+  b.textContent = state.apiKey ? "キー設定済み" : "キー未設定";
+  b.className = "badge" + (state.apiKey ? " ok" : "");
+}
+
+function renderKatas() {
+  const list = $("kata-list");
+  list.innerHTML = "";
+  const sel = $("gen-kata");
+  sel.innerHTML = "";
+  for (const k of state.katas) {
+    const d = document.createElement("details");
+    d.className = "kata-item";
+    const pre = document.createElement("pre"); pre.textContent = k.body;
+    const sum = document.createElement("summary"); sum.textContent = k.name;
+    const del = document.createElement("button");
+    del.className = "danger"; del.textContent = "この型を削除";
+    del.onclick = () => {
+      if (!confirm(`「${k.name}」を削除しますか？`)) return;
+      state.katas = state.katas.filter(x => x.id !== k.id); save(); renderKatas();
+    };
+    d.append(sum, pre, del);
+    list.appendChild(d);
+    const opt = document.createElement("option");
+    opt.value = k.id; opt.textContent = k.name;
+    sel.appendChild(opt);
+  }
+  if (!state.katas.length) list.innerHTML = '<p class="hint">まだ型がありません。下から追加してください。</p>';
+}
+
+$("save-settings").onclick = () => {
+  state.apiKey = $("api-key").value.trim();
+  state.model = $("model").value;
+  state.knowledge = $("knowledge").value;
+  save(); renderSettings();
+};
+$("knowledge").onchange = () => { state.knowledge = $("knowledge").value; save(); };
+
+$("add-kata").onclick = () => {
+  const name = $("kata-name").value.trim(), body = $("kata-body").value.trim();
+  if (!name || !body) { alert("型の名前と内容を入力してください"); return; }
+  state.katas.push({ id: "k" + Date.now(), name, body });
+  $("kata-name").value = ""; $("kata-body").value = "";
+  save(); renderKatas();
+};
+
+$("extract-kata").onclick = async () => {
+  const posts = $("past-posts").value.trim();
+  if (!state.apiKey) { alert("先にAPIキーを保存してください"); return; }
+  if (!posts) { alert("過去ポストを貼り付けてください"); return; }
+  const st = $("extract-status");
+  st.innerHTML = '<span class="spin">◐</span> 抽出中…';
+  $("extract-kata").disabled = true;
+  try {
+    const r = await callClaude(EXTRACT_PROMPT, posts, EXTRACT_SCHEMA, 2000);
+    state.katas.push({ id: "k" + Date.now(), name: r.name, body: r.body });
+    save(); renderKatas();
+    st.textContent = `型「${r.name}」を追加しました。内容を確認・微調整してください。`;
+  } catch (e) { st.textContent = ""; alert(e.message); }
+  $("extract-kata").disabled = false;
+};
+
+function currentGenInputs() {
+  const kata = state.katas.find(k => k.id === $("gen-kata").value);
+  return {
+    kata,
+    buzz: $("buzz-post").value.trim(),
+    count: parseInt($("gen-count").value, 10),
+  };
+}
+
+$("show-prompt").onclick = () => {
+  const { kata, buzz, count } = currentGenInputs();
+  const p = buildGeneratePrompt(kata ? kata.body : "（型を選択）", state.knowledge, buzz || "（参考ポストを貼り付け）", count);
+  $("prompt-preview").textContent = "=== system ===\n" + p.system + "\n\n=== user ===\n" + p.user;
+  $("prompt-dialog").showModal();
+};
+
+$("generate").onclick = async () => {
+  const { kata, buzz, count } = currentGenInputs();
+  $("gen-error").textContent = "";
+  if (!state.apiKey) { $("gen-error").textContent = "先にAPIキーを保存してください。"; return; }
+  if (!kata) { $("gen-error").textContent = "先に型を1つ登録してください。"; return; }
+  if (!buzz) { $("gen-error").textContent = "参考ポストを貼り付けてください。"; return; }
+  const st = $("gen-status");
+  st.innerHTML = '<span class="spin">◐</span> 生成中…（10〜30秒ほど）';
+  $("generate").disabled = true;
+  try {
+    const p = buildGeneratePrompt(kata.body, state.knowledge, buzz, count);
+    const r = await callClaude(p.system, p.user, GEN_SCHEMA, 4000);
+    const box = $("drafts");
+    box.innerHTML = "";
+    for (const text of r.drafts) {
+      const d = document.createElement("div");
+      d.className = "draft";
+      d.textContent = text;
+      const tools = document.createElement("div");
+      tools.className = "tools";
+      const btn = document.createElement("button");
+      btn.className = "sub"; btn.textContent = "コピー";
+      btn.onclick = async () => {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "コピーしました"; setTimeout(() => btn.textContent = "コピー", 1500);
+      };
+      tools.appendChild(btn);
+      d.appendChild(tools);
+      box.appendChild(d);
+    }
+    st.textContent = `${r.drafts.length}案できました。投稿前に内容を必ず確認してください（事実誤認・他者への配慮）。`;
+  } catch (e) {
+    st.textContent = "";
+    $("gen-error").textContent = e.message;
+  }
+  $("generate").disabled = false;
+};
+
+// ---------- データ管理（バックアップ＝りゅうじ版に無かった機能） ----------
+$("export-data").onclick = () => {
+  const data = { ...state, apiKey: "" }; // キーはバックアップに含めない
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kata-open-backup.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$("import-data").onclick = () => $("import-file").click();
+$("import-file").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.katas)) throw new Error("形式が違います");
+    state.katas = data.katas;
+    state.knowledge = data.knowledge || "";
+    if (data.model) state.model = data.model;
+    save(); renderKatas(); renderSettings();
+    alert("読み込みました");
+  } catch (err) { alert("読み込みに失敗しました: " + err.message); }
+  e.target.value = "";
+};
+$("wipe-data").onclick = () => {
+  if (!confirm("APIキーを含む全データをこのブラウザから削除します。よろしいですか？")) return;
+  localStorage.removeItem(STORE_KEY);
+  state = load(); renderSettings(); renderKatas();
+};
+
+renderSettings();
+renderKatas();
+</script>
+</body>
+</html>
