@@ -145,6 +145,7 @@
 
   <div id="depth-select">
     <p style="font-size:15px">まず、どこまで踏み込んでいいかを選んでください。<span class="hint">（対話の途中でいつでも変えられます）</span></p>
+    <p class="hint sans">まず3問・約3分で、仮の設計書が出ます。ピンとこない質問はパスして大丈夫です。</p>
     <div class="depth-choice">
       <button class="depth-card" data-depth="normal">
         <b>ノーマル</b>
@@ -179,7 +180,7 @@
       <span class="hint" id="depth-indicator"></span>
       <span class="row"><button class="ghost sans" id="restart-btn">最初からやり直す</button><button class="ghost sans" id="depth-toggle">深度を変える</button></span>
     </div>
-    <textarea id="answer" placeholder="思い出したまま、話すように書いてください。音声入力の書き起こしをそのまま貼っても大丈夫です。"></textarea>
+    <textarea id="answer" placeholder="思い出したまま、話すように書いてください。一言でも、音声入力の書き起こしをそのまま貼っても大丈夫です。"></textarea>
     <div class="row spread">
       <span class="row">
         <button class="ghost" id="pass-btn">この質問はパス</button>
@@ -192,7 +193,7 @@
 
   <details class="box sans" id="key-box">
     <summary><span id="key-badge">APIキー: 未設定</span></summary>
-    <p class="hint">対話の2問目からは Anthropic のAPIキーが必要です（このブラウザにのみ保存・生成1回あたり数円）。
+    <p class="hint">最初の質問に答えた後の続きには Anthropic のAPIキーが必要です（このブラウザにのみ保存・生成1回あたり数円）。
     <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent)">キーの取得はこちら</a></p>
     <div class="row">
       <input type="password" id="api-key" placeholder="sk-ant-..." style="flex:1;min-width:200px">
@@ -306,11 +307,38 @@ const API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-opus-4-8"; // 対話の精度が商品の魂。数円/問の差なら品質を取る
 const CHECKPOINT_EVERY = 3; // 3問ごとに設計書の断片を提示
 
-// ---------- 固定の1問目（API不要 = キーがなくても始められる） ----------
-const FIRST_QUESTION = {
-  normal: "最近、ちょっと引っかかったこと・気になったことはありますか？\n仕事でも日常でも、小さなことで構いません。",
-  honki: "最近、悔しかったことは何ですか？\nきれいにまとめず、思い出したまま書いてください。",
+// ---------- 1問目の質問プール（API不要 = キーがなくても始められる） ----------
+// 固定1問だと「その質問に心当たりがない人」が入口で詰む（実テストで発生）。
+// ランダムに選び、パスされたらAPIを使わず即・別の質問を出す。
+// どの入口から入っても、掘る先（躓き・系譜・魂の表裏）には対話の中で橋を架ける
+const FIRST_QUESTIONS = {
+  normal: [
+    "最近、ちょっと引っかかったこと・気になったことはありますか？\n仕事でも日常でも、小さなことで構いません。",
+    "つい人に話したくなったことはありますか？\n最近のことでも、ずっと覚えていることでも。",
+    "「なんでみんな、これをやらないんだろう」と思ったことはありますか？",
+    "時間を忘れてやってしまったことは何ですか？",
+    "今の自分に残っている、誰かの言葉や振る舞いはありますか？",
+    "昔は分からなかったけれど、今になって意味が分かったことはありますか？",
+  ],
+  honki: [
+    "悔しかったことは何ですか？\n最近のことでも、ずっと引きずっていることでも。きれいにまとめなくて構いません。",
+    "見ていられない、と感じるものは何ですか？\n世の中のことでも、身近なことでも。",
+    "自分でやってみて、うまくいかなかったことは何ですか？\n挫折したまま放ってあるものでも構いません。",
+    "人からしてもらって、今度は自分が誰かに返したいと思っていることはありますか？",
+    "本当は言いたいのに、言わずに飲み込んでいることは何ですか？",
+    "「それは違うんじゃないか」と感じているのに、周りはそう思っていないことはありますか？",
+  ],
 };
+// まだ出していないプール質問をランダムに1つ選ぶ（全部使い切ったらnull）
+function pickFirstQuestion(depth) {
+  const pool = FIRST_QUESTIONS[depth];
+  const used = state.usedQ[depth];
+  const rest = pool.map((_, i) => i).filter(i => !used.includes(i));
+  if (!rest.length) return null;
+  const i = rest[Math.floor(Math.random() * rest.length)];
+  state.usedQ[depth].push(i);
+  return pool[i];
+}
 
 // ---------- 設計書のフィールド定義（部屋2・抽出・プロンプトで共有） ----------
 const SHEET_FIELDS = [
@@ -345,15 +373,16 @@ function socraticSystem(depth, s) {
     "- 具体的な体験: いつ・どこで・何を見たか",
     "",
     "# 絶対のルール",
-    "- 返答は【次の質問1つだけ】。前置き・励まし・要約・アドバイスは書かない。",
-    "- 質問の冒頭で、相手の直前の言葉を短く引用してから問う（相手が「自分の言葉が拾われた」とわかるように）。",
+    "- 返答は【短い受け止め（10〜25字・任意）＋次の質問1つ】だけ。励まし・要約・アドバイス・説教は書かない。",
+    "- 相手の言葉の引用は、話題を接続するときと解釈を確認するときだけ使う。毎回は引用しない。同じ語を連続して引用しない。",
     "- 説教・上から目線・過剰な称賛は禁止。",
     "- 相手の入力は音声認識の書き起こしで乱れていることがある。誤字は無視して意味を汲む。",
     "- 相手がパスした質問は深追いせず、角度を変える。**パスされた質問の前提・感情語（例:「悔しい」）は、以降の質問・仮説に一切持ち込まない。** 使ってよいのは相手が実際に口にした言葉だけ。",
     "- 相手の動機や過去を推測する質問より、**具体的な場面を尋ねる質問**（直近の実例・いつ・何を見たか）を優先する。",
-    "- 相手に「質問がずれている」「そうは言っていない」と訂正されたら、謝罪は一言で済ませ、**訂正前の解釈を二度と繰り返さない**。相手の訂正後の言葉だけを新しい出発点にする。",
-    "- **相手の回答を代弁・先取りしない。「user」「assistant」のようなラベルや、対話の続き・想定問答を絶対に出力しない。** 出力は次の質問の文面そのものだけ。",
-    "- 3問目以降、まだ見えていない材料の領域（躓きの履歴 → 系譜 → 魂の裏 → 魂の表 → 何のために発信したいのか、の優先順）へ、相手の言葉を橋にして1問ずつ自然に移る。一度に複数の領域を聞かない。唐突なアンケートにしない。",
+    "- 相手に「質問がずれている」「そうは言っていない」と訂正されたら、質問の前に謝罪を一言だけ添えてよい（唯一の例外）。**訂正前の解釈を二度と繰り返さない**。相手の訂正後の言葉だけを新しい出発点にする。",
+    "- **相手の回答を代弁・先取りしない。「user」「assistant」のようなラベルや、対話の続き・想定問答を絶対に出力しない。** 出力は自分（聞き手）の1ターン分だけ。",
+    "- 領域の固定巡回をしない。直前の回答に具体的な場面・感情・固有名詞があれば、まずそこを1段だけ深掘りする。別の材料領域へ移るのは、本人の発言に自然な接続があるとき、または同じ領域を2問掘って材料が増えないときだけ。**終了までに全領域を埋める必要はない。**",
+    "- 「何のために発信したいのか」は、本人の体験が十分に語られる前に聞かない（模範回答を作らせてしまう）。聞くなら対話の終盤に一度だけ。",
   ];
   const normal = [
     "",
@@ -366,7 +395,7 @@ function socraticSystem(depth, s) {
     "# 深度: 本気",
     "- 遠慮しない。感情の核心（何を守りたいのか・なぜ放っておけないのか）まで踏み込む。",
     "- 仮説をぶつけてよい。ただし条件が3つ: ①仮説は**相手が実際に使った言葉**から組み立てる（勝手な物語・身の上の推測で作らない） ②**1回に仮説は1つだけ**（「AだからかBだからか」の二択で迫らない） ③必ず「違ったら違うと言ってください」を添える。",
-    "- それでも尋問にはしない。相手の言葉を引用し、相手のペースを尊重する。",
+    "- それでも尋問にはしない。相手のペースを尊重する。",
   ];
   const ctx = [];
   if (s.xposts.length) {
@@ -374,7 +403,7 @@ function socraticSystem(depth, s) {
   }
   const sh = sheetLines(s);
   if (sh.length) {
-    ctx.push("", "# ここまでに見えている設計書の断片（仮説。まだ空欄の領域を優先して掘る）", ...sh);
+    ctx.push("", "# ここまでに見えている設計書の断片（仮説・参考。空欄を埋めるためではなく、相手の熱があるところを掘る）", ...sh);
   }
   return base.concat(depth === "honki" ? honki : normal).concat(ctx).join("\n");
 }
@@ -382,7 +411,7 @@ function socraticSystem(depth, s) {
 const EXTRACT_SYSTEM = [
   "以下はAI（質問者）とユーザー（回答者）の対話です。ユーザーの回答**だけ**を材料に、発信のコンセプト設計書の断片を抽出してください。",
   "",
-  "1. sheet: 設計書の仮説。まだ見えない項目は空文字。各項目は本人の言葉に忠実に1〜2行で:",
+  "1. sheet: 設計書の仮説。まだ見えない項目は空文字。各項目は1〜2行で、**本人が使った名詞・動詞・感情語をできる限りそのまま残す**。抽象語への言い換え、因果関係の追加、複数発言の統合による物語化をしない。根拠となる直接発言がない項目は空文字:",
   ...SHEET_FIELDS.map(([key, label, desc]) => `   - ${key}: ${label}。${desc}`),
   "2. netadana: 投稿の種になりそうな具体的な体験（最大3件）。title=15字以内の見出し / quote=ユーザーの発言からの原文引用（一切書き換えない）。",
   "3. voice: ユーザーの文体の観察。firstPerson=一人称 / tone=口調の特徴（1行）。",
@@ -391,6 +420,7 @@ const EXTRACT_SYSTEM = [
   "# 禁止事項",
   "- ユーザーが言っていないことを補完・脚色しない。引用は一字も変えない。",
   "- 立派に見せようとしない。生の言葉のほうが価値がある。",
+  "- ユーザーが以前の発言を否定・訂正した場合、sheetの該当項目は**訂正後の内容**で返す（空文字で逃げない）。",
   "- **対話の運営に関するメタ発言は、kotoba・netadana・sheetに絶対に入れない**（例:「パスします」「質問がずれている」「精度が悪い」等、AIやこの対話自体への言及）。選ぶのは、ユーザーが語った**内容そのもの**（体験・違和感・考え）だけ。",
 ].join("\n");
 
@@ -419,7 +449,7 @@ function writeSystem(s) {
     "案は3つ。必ず次の構成で:",
     "- 案1【あなたの言葉そのまま】: 本人の言葉を最小限だけ整えたもの。語彙を変えない。削るのは可、足すのは不可。",
     "- 案2【結論から】: 同じ内容を、1行目に結論を言い切る形に組み替えたもの。",
-    "- 案3【弱さから】: 失敗・葛藤・迷いを隠さず先頭に置いた形。",
+    "- 案3【弱さから】: 失敗・葛藤・迷いを隠さず先頭に置いた形。**入力に弱さの材料が無い場合は捏造せず**、入力の事実の中で最も生々しい部分から始める。",
     "",
     "# 原則（違反したら失格）",
     "- 捏造しない。本人が言っていない体験・数字・実績を一切足さない。",
@@ -461,6 +491,7 @@ function defaults() {
     netadana: [],          // {id, title, quote}
     kotoba: [],
     xposts: [],
+    usedQ: { normal: [], honki: [] }, // 出題済みのプール質問index（同じ入口質問を繰り返さない）
   };
 }
 // ロックの移行: v3のフィールド単位map / 旧v3の一括boolean / v2のjikuLocked をすべて読む。
@@ -492,7 +523,21 @@ function normalize(p) {
     qcount: Number.isFinite(p.qcount) ? p.qcount : 0,
     lastExtractedAt: Number.isFinite(p.lastExtractedAt) ? p.lastExtractedAt : 0,
     sheetLocked: normalizeLock(p),
+    usedQ: {
+      normal: (p.usedQ && Array.isArray(p.usedQ.normal)) ? p.usedQ.normal : [],
+      honki: (p.usedQ && Array.isArray(p.usedQ.honki)) ? p.usedQ.honki : [],
+    },
   };
+  // 履歴が真実。qcount/lastExtractedAtは旧形式・手編集importで壊れ得るので再計算する
+  out.qcount = out.dialogue.filter(m => m.role === "a" && !m.passed).length;
+  out.lastExtractedAt = Math.min(Math.max(0, out.lastExtractedAt), out.qcount);
+  // 履歴に出題済みのプール質問があればusedQに復元する（usedQ未導入データからの移行・import修復）
+  for (const depth of ["normal", "honki"]) {
+    FIRST_QUESTIONS[depth].forEach((q, i) => {
+      if (out.usedQ[depth].includes(i)) return;
+      if (out.dialogue.some(m => m.role === "q" && m.text === q)) out.usedQ[depth].push(i);
+    });
+  }
   // v2 → v3 移行: 旧「軸」(jiku.who/what/why) を設計書の④に引き継ぐ
   if (p.jiku && typeof p.jiku === "object") {
     for (const k of ["who", "what", "why"]) {
@@ -547,6 +592,7 @@ async function callClaude(system, messages, opts) {
 function dialogueToMessages() {
   const msgs = [{ role: "user", content: "（対話を始めてください。あなたから質問をどうぞ）" }];
   for (const m of state.dialogue) {
+    if (m.role === "sys") continue; // 表示専用（深度変更通知など）はAPIに送らない
     const role = m.role === "q" ? "assistant" : "user";
     const content = m.role === "q" ? m.text
       : (m.passed ? "（この質問はパスします。角度を変えてください）" : m.text);
@@ -605,18 +651,19 @@ function updateControls() {
   $("send-btn").disabled = lock;
   $("pass-btn").disabled = lock;
   $("finish-btn").disabled = isSubmitting;
-  $("depth-toggle").disabled = isSubmitting;
+  // チェックポイント中の深度変更は禁止（末尾がsysになり「回答先の質問がない」状態になるため）
+  $("depth-toggle").disabled = lock;
   $("restart-btn").disabled = isSubmitting;
   $("answer").placeholder = atCheckpoint()
     ? "上の「もっと掘る」か「設計書を見る」を選んでください"
-    : "思い出したまま、話すように書いてください。音声入力の書き起こしをそのまま貼っても大丈夫です。";
+    : "思い出したまま、話すように書いてください。一言でも、音声入力の書き起こしをそのまま貼っても大丈夫です。";
 }
 
 function renderChat() {
   const chat = $("chat");
   chat.innerHTML = "";
   state.dialogue.forEach((m, i) => {
-    const wrap = el("div", "msg " + (m.role === "q" ? "q" : "a"));
+    const wrap = el("div", "msg " + (m.role === "q" ? "q" : m.role === "sys" ? "sys" : "a"));
     const body = el("div", "body" + (m.passed ? " passed" : ""), m.passed ? "（パス）" : m.text);
     wrap.appendChild(body);
     chat.appendChild(wrap);
@@ -657,6 +704,7 @@ function renderCheckpoint(cp, isActive) {
   }
   if (any) box.appendChild(el("p", "hint", "※仮説です。「設計書」タブでいつでも直せます。"));
   if (isActive) {
+    box.appendChild(el("p", "hint", "ここまでの分だけでも設計書になっています。続けるほど濃くなります。"));
     const row = el("div", "row", "");
     row.style.marginTop = "10px";
     const more = el("button", "ghost", "もっと掘る");
@@ -688,7 +736,7 @@ function renderCheckpoint(cp, isActive) {
 function startDialogue(depth) {
   state.depth = depth;
   state.started = true;
-  state.dialogue.push({ role: "q", text: FIRST_QUESTION[depth] });
+  state.dialogue.push({ role: "q", text: pickFirstQuestion(depth) || FIRST_QUESTIONS[depth][0] });
   save();
   $("depth-select").hidden = true;
   $("answer-area").hidden = false;
@@ -700,7 +748,9 @@ document.querySelectorAll(".depth-card").forEach(btn => {
 
 $("depth-toggle").onclick = () => {
   state.depth = state.depth === "honki" ? "normal" : "honki";
-  state.dialogue.push({ role: "q", text: state.depth === "honki"
+  // 表示専用のsysメッセージ。role:"q"にすると未回答の質問と結合され、
+  // どちらへの回答か曖昧になるため、対話履歴（API送信）には含めない
+  state.dialogue.push({ role: "sys", text: state.depth === "honki"
     ? "（深度を「本気」に変えました。ここからは踏み込みます。）"
     : "（深度を「ノーマル」に戻しました。）" });
   save(); renderChat();
@@ -711,6 +761,22 @@ async function submitAnswer(passed) {
   const text = $("answer").value.trim();
   if (!passed && !text) return;
   $("dig-error").textContent = "";
+
+  // まだ一度も答えていない段階のパスは、APIを使わずプールから別の入口質問を即出す
+  // （入口の質問に心当たりがない人が、キー設定や待ち時間なしで入り直せる）
+  if (passed && state.qcount === 0) {
+    const next = pickFirstQuestion(state.depth);
+    if (next) {
+      state.dialogue.push({ role: "a", text: "", passed: true });
+      state.dialogue.push({ role: "q", text: next });
+      save(); renderChat();
+      const st = $("dig-status");
+      st.textContent = "別の入口から聞きます。ピンとくるものが出るまでパスして大丈夫です。";
+      setTimeout(() => { if (st.textContent.startsWith("別の入口")) st.textContent = ""; }, 3000);
+      return;
+    }
+    // プールを使い切ったらAPI経路（下の通常フロー）に落ちる
+  }
 
   if (!state.apiKey) {
     // 回答を消さずにその場で止め、キー設定を促す（入力は失われない）
@@ -768,12 +834,15 @@ async function askNext() {
 
 async function extract() {
   const transcript = state.dialogue
+    .filter(m => m.role !== "sys") // 表示専用の通知は抽出材料に混ぜない
     .map(m => (m.role === "q" ? "AI: " : "ユーザー: ") + (m.passed ? "（パス）" : m.text))
     .join("\n");
   const r = await callClaude(EXTRACT_SYSTEM, [{ role: "user", content: transcript }],
     { maxTokens: 2000, schema: EXTRACT_SCHEMA });
   // 設計書: 本人が手で保存した欄（sheetLocked[k]）は、空欄も含めてAIは一切触らない。
-  // 意図的に消した欄が抽出のたびに復活する事故を防ぐため
+  // 意図的に消した欄が抽出のたびに復活する事故を防ぐため。
+  // なお「AIは項目を消せない（空文字では上書きしない）」のは意図した設計:
+  // 削除の権限は本人だけが持つ（設計書タブで欄を空にして保存すればロックされ、復活もしない）
   for (const [k] of SHEET_FIELDS) {
     if (state.sheetLocked[k]) continue;
     if (r.sheet[k]) state.sheet[k] = r.sheet[k];
