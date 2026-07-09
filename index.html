@@ -3,430 +3,898 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
-<title>型オープン — 全部見せるX投稿づくり</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com https://publish.twitter.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<title>軸オープン — 自分の言葉で書けるようになる</title>
 <style>
   :root {
-    --bg: #0f1420; --panel: #1a2233; --panel2: #232e45; --line: #2e3b58;
-    --text: #e8ecf4; --sub: #9aa7c0; --accent: #4da3ff; --accent2: #39c98e;
-    --warn: #ffb454; --danger: #ff6b6b;
+    --bg: #12141a; --panel: #1a1d26; --panel2: #22262f; --line: #2e3340;
+    --text: #e9ebf0; --sub: #9298a8; --accent: #d8b26e; --accent-dim: #8a744f;
+    --green: #6fbf9a; --danger: #e07a7a; --q-bg: #1e2230;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-    font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.7; }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 80px; }
-  h1 { font-size: 26px; margin: 8px 0 2px; }
-  h2 { font-size: 17px; margin: 0 0 12px; color: var(--accent); }
-  .tagline { color: var(--sub); margin: 0 0 6px; }
-  .kangen { font-size: 13px; color: var(--sub); border-left: 3px solid var(--accent2);
-    padding-left: 10px; margin: 14px 0 24px; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 18px; margin-bottom: 18px; }
-  label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
-  input[type=password], input[type=text], textarea, select {
-    width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
-    border-radius: 8px; padding: 10px; font-size: 14px; font-family: inherit; }
-  textarea { min-height: 90px; resize: vertical; }
-  button { background: var(--accent); color: #08101f; border: 0; border-radius: 8px;
-    padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
-  button.sub { background: var(--panel2); color: var(--text); border: 1px solid var(--line); font-weight: 400; }
-  button.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); font-weight: 400; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); line-height: 1.85;
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; }
+  .sans { font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 0 16px 90px; }
+
+  header.site { padding: 28px 0 10px; }
+  header.site h1 { font-size: 22px; margin: 0; letter-spacing: .12em; font-weight: 600; }
+  header.site p { color: var(--sub); font-size: 13.5px; margin: 6px 0 0; }
+
+  nav.tabs { display: flex; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--line); }
+  nav.tabs button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--sub); padding: 10px 4px 12px; font-size: 14.5px; cursor: pointer;
+    font-family: inherit; letter-spacing: .1em; }
+  nav.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .room { display: none; padding-top: 22px; }
+  .room.on { display: block; }
+
+  /* ---- 引き出す ---- */
+  .depth-choice { display: grid; gap: 12px; margin: 18px 0; }
+  .depth-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px; cursor: pointer; text-align: left; color: var(--text); font-family: inherit; font-size: 15px; }
+  .depth-card:hover { border-color: var(--accent-dim); }
+  .depth-card b { display: block; font-size: 16.5px; margin-bottom: 6px; letter-spacing: .08em; }
+  .depth-card .note { color: var(--sub); font-size: 13px; line-height: 1.7; }
+  .depth-card.honki b { color: var(--accent); }
+
+  .chat { margin-top: 8px; }
+  .msg { margin: 18px 0; }
+  .msg.q .body { background: var(--q-bg); border-left: 3px solid var(--accent-dim);
+    padding: 14px 16px; border-radius: 0 10px 10px 0; font-size: 15.5px; }
+  .msg.a .body { color: var(--text); padding: 4px 2px 4px 18px; font-size: 15px;
+    border-left: 1px solid var(--line); margin-left: 24px; white-space: pre-wrap; }
+  .msg.a .body.passed { color: var(--sub); font-style: italic; }
+  .msg.sys .body { color: var(--sub); font-size: 13px; text-align: center; padding: 4px; }
+
+  .checkpoint { background: var(--panel); border: 1px solid var(--accent-dim); border-radius: 10px;
+    padding: 18px; margin: 22px 0; }
+  .checkpoint h3 { margin: 0 0 10px; font-size: 15px; color: var(--accent); letter-spacing: .1em; }
+  .checkpoint .kotoba { border-left: 3px solid var(--accent); padding: 6px 14px; margin: 10px 0;
+    font-size: 15.5px; }
+  .checkpoint .kotoba small { display: block; color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .jiku-line { font-size: 14px; color: var(--sub); margin: 4px 0; }
+  .jiku-line b { color: var(--text); font-weight: 600; }
+
+  .answer-area { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 18px;
+    border-top: 1px solid var(--line); margin-top: 24px; }
+  textarea { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px; font-size: 15px; font-family: inherit; min-height: 84px; resize: vertical; }
+  textarea:focus, input:focus { outline: 1px solid var(--accent-dim); }
+  .answer-area .row { margin-top: 8px; }
+  .hint { color: var(--sub); font-size: 12.5px; }
+
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .badge { font-size: 12px; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--sub); }
-  .badge.ok { border-color: var(--accent2); color: var(--accent2); }
-  .kata-item { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
-    padding: 10px 12px; margin: 8px 0; }
-  .kata-item summary { cursor: pointer; font-weight: 700; }
-  .kata-item pre { white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--sub); margin: 8px 0; }
-  .draft { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
-    padding: 12px; margin: 10px 0; white-space: pre-wrap; font-size: 15px; }
-  .draft .tools { text-align: right; margin-top: 8px; }
-  .hint { font-size: 12px; color: var(--sub); }
-  .hint a, .kangen a, footer a { color: var(--accent); }
-  .err { color: var(--danger); font-size: 13px; white-space: pre-wrap; }
-  .spin { display: inline-block; animation: r 1s linear infinite; }
+  .spread { justify-content: space-between; }
+  button.primary { background: var(--accent); color: #16130c; border: 0; border-radius: 8px;
+    padding: 10px 22px; font-size: 14.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  button.ghost { background: none; color: var(--sub); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 14px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  button.ghost:hover { color: var(--text); border-color: var(--accent-dim); }
+  button.danger { background: none; color: var(--danger); border: 1px solid var(--danger);
+    border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  details.box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0; }
+  details.box summary { cursor: pointer; color: var(--sub); font-size: 13.5px; }
+  details.box[open] summary { margin-bottom: 10px; }
+  input[type=password], input[type=text], input[type=url] { width: 100%; background: var(--panel2);
+    color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+    font-size: 14px; font-family: inherit; }
+  label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+
+  /* ---- 軸 ---- */
+  .jiku-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px; margin-bottom: 16px; }
+  .jiku-card h3 { margin: 0 0 4px; font-size: 15px; letter-spacing: .1em; }
+  .badge { display: inline-block; font-size: 11.5px; color: var(--accent); border: 1px solid var(--accent-dim);
+    border-radius: 99px; padding: 1px 10px; margin-left: 8px; vertical-align: 2px; }
+  .neta-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; margin: 10px 0; }
+  .neta-card .t { font-size: 15px; margin-bottom: 4px; }
+  .neta-card .quote { color: var(--sub); font-size: 13px; border-left: 2px solid var(--accent-dim);
+    padding-left: 10px; margin: 6px 0 10px; }
+  .empty { color: var(--sub); font-size: 14px; padding: 20px 0; text-align: center; }
+
+  /* ---- 書く ---- */
+  .draft { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px; margin: 14px 0; white-space: pre-wrap; font-size: 15.5px; }
+  .draft .label { font-size: 12px; color: var(--accent); margin-bottom: 8px; letter-spacing: .08em; }
+  .draft .tools { text-align: right; margin-top: 10px; }
+  .selfcheck { background: var(--q-bg); border-radius: 10px; padding: 16px; margin: 18px 0; }
+  .selfcheck h3 { margin: 0 0 8px; font-size: 14.5px; color: var(--accent); }
+  .selfcheck label.chk { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px;
+    color: var(--text); margin: 8px 0; cursor: pointer; }
+  .selfcheck input { width: auto; margin-top: 6px; }
+
+  .err { color: var(--danger); font-size: 13.5px; white-space: pre-wrap; margin: 8px 0; }
+  .status { color: var(--sub); font-size: 13.5px; margin: 8px 0; }
+  .spin { display: inline-block; animation: r 1.2s linear infinite; }
   @keyframes r { to { transform: rotate(360deg); } }
+
   dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line);
     border-radius: 12px; max-width: 700px; width: 92%; }
-  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog::backdrop { background: rgba(0,0,0,.65); }
   dialog pre { white-space: pre-wrap; font-size: 12.5px; background: var(--panel2);
-    padding: 12px; border-radius: 8px; max-height: 60vh; overflow-y: auto; }
-  footer { color: var(--sub); font-size: 13px; text-align: center; margin-top: 32px; }
+    padding: 12px; border-radius: 8px; max-height: 55vh; overflow-y: auto;
+    font-family: "Hiragino Sans", sans-serif; }
+  footer { color: var(--sub); font-size: 13px; text-align: center; margin-top: 44px; line-height: 2; }
+  footer a { color: var(--accent); }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<header>
-  <h1>型オープン</h1>
-  <p class="tagline">伸びてるポストの「構造」だけ借りて、あなたの「型」で書く。X投稿づくりツール。</p>
-  <p class="kangen">
-    このツールは<strong>無料・無条件</strong>で使えます。登録も、リポストも、感想投稿も要りません。<br>
-    プロンプトを含む全コードは <a href="https://github.com/o5aidev/kata-open" target="_blank" rel="noopener">GitHub で公開</a>。
-    サーバーは存在せず、あなたのAPIキーはブラウザから Anthropic 以外のどこにも送信されません（このページのソースで検証できます）。
-  </p>
+<header class="site">
+  <h1>軸オープン</h1>
+  <p>投稿を作るツールではありません。あなたの中にある「語れるもの」に気づくための対話です。<br>
+  無料・登録不要・<a href="https://github.com/o5aidev/kata-open" target="_blank" rel="noopener" style="color:var(--accent)">全コード公開</a>（プロンプト含む）。データはこのブラウザの中にだけ残ります。</p>
 </header>
 
-<section id="sec-settings">
-  <h2>1. 設定（初回のみ）</h2>
-  <div class="row">
-    <span id="key-badge" class="badge">キー未設定</span>
-    <span class="hint"><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> でAPIキーを発行（要 $5〜 クレジット）。生成1回あたり数円です。</span>
+<nav class="tabs sans">
+  <button id="tab-dig" class="on">引き出す</button>
+  <button id="tab-jiku">軸</button>
+  <button id="tab-write">書く</button>
+</nav>
+
+<!-- ================= 部屋1: 引き出す ================= -->
+<section id="room-dig" class="room on">
+
+  <div id="depth-select">
+    <p style="font-size:15px">まず、どこまで踏み込んでいいかを選んでください。<span class="hint">（対話の途中でいつでも変えられます）</span></p>
+    <div class="depth-choice">
+      <button class="depth-card" data-depth="normal">
+        <b>ノーマル</b>
+        <span class="note">気軽に始める。日常の小さな引っかかりから、あなたの視点を探します。</span>
+      </button>
+      <button class="depth-card honki" data-depth="honki">
+        <b>本気（丸裸）</b>
+        <span class="note">鋭い質問をします。痛いところに触れるかもしれません。<br>
+        すべて、あなたの中身を引き出すためです。本気の人だけ選んでください。</span>
+      </button>
+    </div>
+    <details class="box sans">
+      <summary>すでにXで投稿したことがある方（任意・なくても大丈夫です）</summary>
+      <label>投稿のURLを貼ると、それを踏まえて質問します</label>
+      <div class="row">
+        <input type="url" id="xurl" placeholder="https://x.com/あなた/status/..." style="flex:1;min-width:200px">
+        <button class="ghost" id="xurl-btn">読み込む</button>
+      </div>
+      <p class="hint" id="xurl-status"></p>
+      <label>読み込めない場合は、投稿の本文をそのまま貼ってください</label>
+      <textarea id="xpaste" style="min-height:60px"></textarea>
+      <div class="row" style="margin-top:6px"><button class="ghost" id="xpaste-btn">この本文を使う</button></div>
+      <div id="xposts-list" class="hint"></div>
+    </details>
   </div>
-  <label for="api-key">Anthropic APIキー（sk-ant- で始まる）</label>
-  <input type="password" id="api-key" placeholder="sk-ant-...">
-  <label for="model">使用モデル</label>
-  <select id="model">
-    <option value="claude-opus-4-8">Claude Opus 4.8 — 高品質（約3〜5円/回）</option>
-    <option value="claude-sonnet-5">Claude Sonnet 5 — 低コスト（約1〜2円/回）</option>
-  </select>
-  <p class="hint">キーとデータはこのブラウザの localStorage にのみ保存されます。共有PCでは使い終わったら「全データ削除」を。</p>
-  <div class="row" style="margin-top:10px">
-    <button id="save-settings">保存</button>
-    <button class="sub" id="export-data">データ書き出し</button>
-    <button class="sub" id="import-data">データ読み込み</button>
-    <button class="danger" id="wipe-data">全データ削除</button>
+
+  <div class="chat" id="chat"></div>
+  <p class="err" id="dig-error"></p>
+
+  <div class="answer-area" id="answer-area" hidden>
+    <div class="row spread sans" style="margin-bottom:8px">
+      <span class="hint" id="depth-indicator"></span>
+      <span><button class="ghost sans" id="depth-toggle">深度を変える</button></span>
+    </div>
+    <textarea id="answer" placeholder="思い出したまま、話すように書いてください。音声入力の書き起こしをそのまま貼っても大丈夫です。"></textarea>
+    <div class="row spread">
+      <span class="row">
+        <button class="ghost" id="pass-btn">この質問はパス</button>
+        <button class="ghost" id="finish-btn">ここまでにする</button>
+      </span>
+      <button class="primary" id="send-btn">答える</button>
+    </div>
+    <p class="status" id="dig-status"></p>
+  </div>
+
+  <details class="box sans" id="key-box">
+    <summary><span id="key-badge">APIキー: 未設定</span></summary>
+    <p class="hint">対話の2問目からは Anthropic のAPIキーが必要です（このブラウザにのみ保存・生成1回あたり数円）。
+    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent)">キーの取得はこちら</a></p>
+    <div class="row">
+      <input type="password" id="api-key" placeholder="sk-ant-..." style="flex:1;min-width:200px">
+      <button class="ghost" id="key-save">保存</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="danger" id="wipe-btn-dig">全データ削除</button>
+      <span class="hint">対話の内容はこのブラウザにしか存在しません。いつでも消せます。</span>
+    </div>
+  </details>
+
+</section>
+
+<!-- ================= 部屋2: 軸 ================= -->
+<section id="room-jiku" class="room">
+  <div class="jiku-card">
+    <h3>あなたの軸 <span class="badge sans" id="jiku-badge">仮説</span></h3>
+    <p class="hint">AIの推定です。違うと感じたら、あなたの言葉に直してください。直した瞬間から、これはあなたのものです。</p>
+    <label>誰に</label><input type="text" id="jiku-who" placeholder="（対話から推定されます）">
+    <label>何を</label><input type="text" id="jiku-what" placeholder="（対話から推定されます）">
+    <label>なぜ、あなたが語れるのか</label><input type="text" id="jiku-why" placeholder="（対話から推定されます）">
+    <label>一人称・口調</label><input type="text" id="voice-tone" placeholder="例）一人称は「俺」。断定調。絵文字なし">
+    <div class="row" style="margin-top:12px"><button class="ghost" id="jiku-save">この内容で保存</button><span class="hint" id="jiku-saved"></span></div>
+  </div>
+
+  <h3 style="font-size:15px;letter-spacing:.1em">ネタ棚 <span class="hint">— 対話から出た、あなたの体験の種</span></h3>
+  <div id="neta-list"><p class="empty">まだ空です。「引き出す」の対話から自動で貯まります。</p></div>
+
+  <div class="row" style="margin-top:20px">
+    <button class="ghost" id="export-btn">データ書き出し</button>
+    <button class="ghost" id="import-btn">読み込み</button>
+    <button class="danger" id="wipe-btn">全データ削除</button>
     <input type="file" id="import-file" accept=".json" hidden>
   </div>
 </section>
 
-<section id="sec-kata">
-  <h2>2. あなたの「型」</h2>
-  <p class="hint">型 = 口調・一人称・改行のリズム・構成の指示書。手で書くか、過去ポストからAIで抽出できます。プリセット3種入り。</p>
-  <div id="kata-list"></div>
-  <label for="kata-name">型の名前</label>
-  <input type="text" id="kata-name" placeholder="例）結論バサッと型">
-  <label for="kata-body">型の内容</label>
-  <textarea id="kata-body" placeholder="例）一人称は「俺」。タメ口・短文。1行目で結論→理由を2つ→最後に問いかけ。絵文字なし。改行多め。"></textarea>
-  <div class="row" style="margin-top:8px">
-    <button id="add-kata">＋ 型を追加</button>
+<!-- ================= 部屋3: 書く ================= -->
+<section id="room-write" class="room">
+  <p style="font-size:15px">ネタ棚から選ぶか、いま腹にあるものをそのまま書いてください。</p>
+  <div id="write-neta" class="sans"></div>
+  <label class="sans">いま腹にあるもの（音声入力の書き起こし歓迎）</label>
+  <textarea id="write-input"></textarea>
+  <div class="row spread" style="margin-top:10px">
+    <button class="ghost sans" id="show-prompt">送信されるプロンプトを見る</button>
+    <button class="primary" id="write-btn">自分の言葉にする</button>
   </div>
-  <details style="margin-top:14px">
-    <summary class="hint" style="cursor:pointer">過去ポストからAIで型を抽出する</summary>
-    <label for="past-posts">過去ポストを改行2つ区切りで数本貼り付け</label>
-    <textarea id="past-posts"></textarea>
-    <div class="row" style="margin-top:8px">
-      <button id="extract-kata">抽出する</button>
-      <span id="extract-status" class="hint"></span>
-    </div>
-  </details>
-</section>
-
-<section id="sec-knowledge">
-  <h2>3. 共通ナレッジ（任意）</h2>
-  <label for="knowledge">発信テーマ・実績・キャラ設定など、毎回の生成に効かせたい前提</label>
-  <textarea id="knowledge" placeholder="例）建設業向けAI導入を発信。実績：自社をAIで運営中。読者は30〜50代の中小企業経営者。"></textarea>
-</section>
-
-<section id="sec-generate">
-  <h2>4. 生成する</h2>
-  <label for="buzz-post">参考にしたい伸びているポスト（内容は流用せず、構造だけ借ります）</label>
-  <textarea id="buzz-post"></textarea>
-  <div class="row" style="margin-top:8px">
-    <label style="margin:0" for="gen-kata">使う型</label>
-    <select id="gen-kata" style="width:auto;min-width:180px"></select>
-    <label style="margin:0" for="gen-count">案の数</label>
-    <select id="gen-count" style="width:auto">
-      <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
-    </select>
-    <button id="generate">生成する</button>
-    <button class="sub" id="show-prompt">送信されるプロンプトを見る</button>
-  </div>
-  <p id="gen-status" class="hint"></p>
-  <p id="gen-error" class="err"></p>
+  <p class="status" id="write-status"></p>
+  <p class="err" id="write-error"></p>
   <div id="drafts"></div>
+  <div class="selfcheck sans" id="selfcheck" hidden>
+    <h3>投稿する前に、3つだけ確認してください</h3>
+    <label class="chk"><input type="checkbox"> これは、自分の言葉ですか？</label>
+    <label class="chk"><input type="checkbox"> 言い過ぎていませんか？</label>
+    <label class="chk"><input type="checkbox"> 全部、本当にあったことですか？</label>
+    <p class="hint">3つYESなら、それはもうあなたの投稿です。</p>
+  </div>
 </section>
 
 <footer>
-  <p>教わった恩は、次の人へ。 / <a href="https://github.com/o5aidev/kata-open" target="_blank" rel="noopener">ソースコード</a> ・ <a href="https://x.com/Tokyo_555_" target="_blank" rel="noopener">@Tokyo_555_</a></p>
+  <p>教わった恩は、次の人へ。<br>
+  <a href="https://github.com/o5aidev/kata-open" target="_blank" rel="noopener">ソースコード</a> ・ <a href="https://x.com/Tokyo_555_" target="_blank" rel="noopener">@Tokyo_555_</a></p>
 </footer>
 
+</div>
+
 <dialog id="prompt-dialog">
-  <h2 style="margin-top:0">これがAPIに送信されるプロンプトの全文です</h2>
-  <p class="hint">隠している「秘伝のタレ」はありません。自由にコピーして、自分で改造してください。</p>
-  <pre id="prompt-preview"></pre>
+  <h2 style="margin-top:0;font-size:17px">これがAIに送られる指示の全文です</h2>
+  <p class="hint sans">隠している「秘伝のタレ」はありません。コピーして自由に改造してください。</p>
+  <pre id="prompt-preview" class="sans"></pre>
   <div class="row" style="justify-content:flex-end;margin-top:10px">
-    <button class="sub" onclick="document.getElementById('prompt-dialog').close()">閉じる</button>
+    <button class="ghost sans" onclick="document.getElementById('prompt-dialog').close()">閉じる</button>
   </div>
 </dialog>
 
-</div>
 <script>
 "use strict";
 // ============================================================
-// 型オープン — 全コード公開・完全クライアントサイド
-// APIキーは https://api.anthropic.com にのみ送信されます。
-// （このページに他の通信先が存在しないことは、上部の
-//   Content-Security-Policy と、このファイル全文で検証できます）
+// 軸オープン — 全コード公開・完全クライアントサイド
+// 通信先は api.anthropic.com（生成）と publish.twitter.com
+// （X投稿の読み込み・任意）のみ。CSPで構造的に制限しています。
 // ============================================================
 
-const STORE_KEY = "kataopen_v1";
+const STORE_KEY = "jikuopen_v2";
 const API_URL = "https://api.anthropic.com/v1/messages";
-const API_VERSION = "2023-06-01";
+const MODEL = "claude-sonnet-5";
+const CHECKPOINT_EVERY = 3; // 3問ごとに仮の軸を提示
 
-// ---------- プリセット型（自由に消して自分の型に置き換えてOK） ----------
-const PRESETS = [
-  { id: "p1", name: "【プリセット】結論先出し型",
-    body: "一人称は「私」。です・ます調。\n1行目：結論を一言で言い切る（フック）。\n2〜3行目：理由や具体例を短文で2つ。\n最終行：読者への問いかけ、または「保存して見返してください」等の行動の呼びかけ。\n1文は短く。1文ごとに改行。絵文字は使わない。全体で140字以内。" },
-  { id: "p2", name: "【プリセット】実体験型",
-    body: "一人称は「僕」。少しくだけた丁寧語。\n1行目：過去の失敗や意外な体験を告白する（例：「〇〇で失敗しました」）。\n中盤：そこから学んだことを1つだけ、具体的に。\n最終行：同じ状況の読者への一言アドバイス。\n体験談はナレッジに書かれた事実のみ使用。誇張しない。絵文字は文末に1つまで。" },
-  { id: "p3", name: "【プリセット】問いかけ型",
-    body: "一人称なし。断定を避けた柔らかい語り口。\n1行目：読者の常識を揺さぶる問いかけ（例：「なぜ〇〇なのに△△なのか？」）。\n中盤：その問いへの視点を2つ提示。\n最終行：答えを言い切らず、読者に考える余白を残す。\n改行多め、1ブロック2行以内。絵文字・記号は使わない。" },
-];
+// ---------- 固定の1問目（API不要 = キーがなくても始められる） ----------
+const FIRST_QUESTION = {
+  normal: "最近、ちょっと引っかかったこと・気になったことはありますか？\n仕事でも日常でも、小さなことで構いません。",
+  honki: "最近、悔しかったことは何ですか？\nきれいにまとめず、思い出したまま書いてください。",
+};
 
 // ---------- プロンプト（ここが全部見せたい中身です） ----------
-function buildGeneratePrompt(kata, knowledge, buzzPost, count) {
-  const system = [
-    "あなたはX（旧Twitter）投稿の専門ライターです。",
+function socraticSystem(depth, s) {
+  const base = [
+    "あなたはソクラテス式の聞き手です。相手は「何を発信していいかわからない」と感じている人。",
+    "目的は、質問だけで相手の中にある体験・違和感・得意を引き出すこと。教えることではありません。",
     "",
-    "# やること",
-    `「参考ポスト」の**構造だけ**を分析し、「あなたの型」と「共通ナレッジ」に沿った完全オリジナルの投稿を${count}案つくります。`,
+    "# 絶対のルール",
+    "- 返答は【次の質問1つだけ】。前置き・励まし・要約・アドバイスは書かない。",
+    "- 質問の冒頭で、相手の直前の言葉を短く引用してから問う（相手が「自分の言葉が拾われた」とわかるように）。",
+    "- 説教・上から目線・過剰な称賛は禁止。",
+    "- 相手の入力は音声認識の書き起こしで乱れていることがある。誤字は無視して意味を汲む。",
+    "- 相手がパスした質問は深追いせず、角度を変える。",
+    "- 3〜4問目のどこかで一度だけ「そもそも、何のために発信したいのか」に自然に触れる（まだ聞いていない場合）。",
+  ];
+  const normal = [
     "",
-    "# 絶対に守るルール",
-    "1. 参考ポストから借りてよいのは構造のみ（フックの種類・展開の順番・改行のリズム・締めの機能）。",
-    "2. 参考ポストの語句・固有名詞・数字・体験談は一切流用しない。内容はすべて「型」と「共通ナレッジ」から生成する。",
-    "3. 型に書かれた口調・一人称・絵文字・文字数のルールを厳守する。",
-    "4. 事実を捏造しない。ナレッジにない実績・数字をでっち上げない。数字や固有名詞が必要な構造なら【ここに実績を入れる】のようにプレースホルダーにする。",
-    "5. 各案は互いに切り口を変える（同じ内容の言い換えを並べない）。",
-  ].join("\n");
-  const user = [
-    "## あなたの型",
-    kata,
+    "# 深度: ノーマル",
+    "- 開いた質問で、決めつけない。仮説を押し付けない。",
+    "- 日常の具体的な場面（いつ・どこで・誰と）を思い出させる質問を優先する。",
+  ];
+  const honki = [
     "",
-    "## 共通ナレッジ",
-    knowledge || "（未設定。一般的な内容で書き、実績が必要な箇所はプレースホルダーにする）",
-    "",
-    "## 参考ポスト（構造だけ借りる）",
-    buzzPost,
-  ].join("\n");
-  return { system, user };
+    "# 深度: 本気",
+    "- 遠慮しない。感情の核心（何が悔しかったのか・何を守りたかったのか・なぜ放っておけないのか）まで踏み込む。",
+    "- 仮説をぶつけてよい。ただし必ず「違ったら違うと言ってください」を添える。",
+    "- それでも尋問にはしない。相手の言葉を引用し、相手のペースを尊重する。",
+  ];
+  const ctx = [];
+  if (s.xposts.length) {
+    ctx.push("", "# 相手の過去の投稿（参考。これを踏まえた質問をしてよい）", ...s.xposts.map(p => "- " + p));
+  }
+  if (s.jiku.who || s.jiku.what || s.jiku.why) {
+    ctx.push("", "# ここまでに見えている仮の軸", `誰に: ${s.jiku.who}`, `何を: ${s.jiku.what}`, `なぜこの人が: ${s.jiku.why}`);
+  }
+  return base.concat(depth === "honki" ? honki : normal).concat(ctx).join("\n");
 }
 
-const EXTRACT_PROMPT = [
-  "以下はあるユーザーの過去のX投稿です。この人の文体プロファイル（型）を抽出してください。",
+const EXTRACT_SYSTEM = [
+  "以下はAI（質問者）とユーザー（回答者）の対話です。ユーザーの回答**だけ**を材料に、次を抽出してください。",
   "",
-  "抽出する観点：",
-  "- 一人称・口調・語尾",
-  "- 文の長さと改行のリズム",
-  "- 絵文字・記号の使い方",
-  "- よく使う構成（1行目の入り方 → 展開 → 締め方）",
-  "- 避けていそうな表現",
+  "1. jiku: 発信の軸の仮説。who=誰に向けて語れそうか / what=何を語れそうか / why=なぜこの人が語れるのか（体験の裏付け）。まだ見えない項目は空文字。",
+  "2. netadana: 投稿の種になりそうな具体的な体験（最大3件）。title=15字以内の見出し / quote=ユーザーの発言からの原文引用（一切書き換えない）。",
+  "3. voice: ユーザーの文体の観察。firstPerson=一人称 / tone=口調の特徴（1行）。",
+  "4. kotoba: ユーザーの発言の中で、そのまま投稿に使えるほど熱のある一文（最大2つ・原文のまま）。",
   "",
-  "出力は箇条書きで、そのまま「投稿生成AIへの指示書」として使える命令形で書いてください。",
+  "# 禁止事項",
+  "- ユーザーが言っていないことを補完・脚色しない。引用は一字も変えない。",
+  "- 立派に見せようとしない。生の言葉のほうが価値がある。",
 ].join("\n");
 
-// ---------- 状態管理（localStorageのみ） ----------
+const EXTRACT_SCHEMA = {
+  type: "object",
+  properties: {
+    jiku: { type: "object", properties: { who: {type:"string"}, what: {type:"string"}, why: {type:"string"} },
+      required: ["who","what","why"], additionalProperties: false },
+    netadana: { type: "array", items: { type: "object",
+      properties: { title: {type:"string"}, quote: {type:"string"} },
+      required: ["title","quote"], additionalProperties: false } },
+    voice: { type: "object", properties: { firstPerson: {type:"string"}, tone: {type:"string"} },
+      required: ["firstPerson","tone"], additionalProperties: false },
+    kotoba: { type: "array", items: { type: "string" } },
+  },
+  required: ["jiku","netadana","voice","kotoba"], additionalProperties: false,
+};
+
+function writeSystem(s) {
+  return [
+    "あなたは編集者です。ユーザーの「生の思考」を、X（Twitter）に投稿できる形に整えます。",
+    "",
+    "# あなたの仕事は「書くこと」ではなく「本人の言葉を立たせること」",
+    "案は3つ。必ず次の構成で:",
+    "- 案1【あなたの言葉そのまま】: 本人の言葉を最小限だけ整えたもの。語彙を変えない。削るのは可、足すのは不可。",
+    "- 案2【結論から】: 同じ内容を、1行目に結論を言い切る形に組み替えたもの。",
+    "- 案3【弱さから】: 失敗・葛藤・迷いを隠さず先頭に置いた形。",
+    "",
+    "# 原則（違反したら失格）",
+    "- 捏造しない。本人が言っていない体験・数字・実績を一切足さない。",
+    "- 断定する。「〜だと思います」「〜かもしれません」「いかがでしたか」のような逃げ・定型文を使わない。",
+    "- 借物の言葉を使わない。本人の語彙を優先する。ありがちなSNSライター文体（「〜な件」「有益」「マジで人生変わる」）は禁止。",
+    "- ハッシュタグ・絵文字は、本人の文体（下記）にあるときだけ使う。",
+    "- 各案は全角140字以内を目安。1文ごとに改行してよい。",
+    "",
+    "# この人の軸",
+    `誰に: ${s.jiku.who || "（未設定）"}`,
+    `何を: ${s.jiku.what || "（未設定）"}`,
+    `なぜこの人が: ${s.jiku.why || "（未設定）"}`,
+    "",
+    "# この人の文体",
+    s.voice.tone || "（未設定。入力文の文体に合わせる）",
+  ].join("\n");
+}
+
+const WRITE_SCHEMA = {
+  type: "object",
+  properties: { drafts: { type: "array", items: { type: "object",
+    properties: { label: {type:"string"}, text: {type:"string"} },
+    required: ["label","text"], additionalProperties: false } } },
+  required: ["drafts"], additionalProperties: false,
+};
+
+// ---------- 状態 ----------
+function defaults() {
+  return {
+    version: 2,
+    apiKey: "", depth: "", started: false,
+    dialogue: [],          // {role:"q"|"a", text, passed, checkpoint?}
+    qcount: 0,             // 回答済みの数
+    lastExtractedAt: 0,    // 抽出済みの回答数
+    jiku: { who: "", what: "", why: "" },
+    jikuLocked: false,     // 本人が軸を編集したらAIは一切上書きしない
+    voice: { firstPerson: "", tone: "" },
+    netadana: [],          // {id, title, quote}
+    kotoba: [],
+    xposts: [],
+  };
+}
+// 旧バージョン・欠損・部分importでも落ちないよう、必ずデフォルトにmergeする。
+// 将来バージョンのデータもbest-effortで読む方針（拒否してデータを失うより安全側）
+function normalize(p) {
+  const d = defaults();
+  if (!p || typeof p !== "object") return d;
+  return {
+    ...d, ...p,
+    version: 2,
+    jiku: { ...d.jiku, ...(typeof p.jiku === "object" && p.jiku ? p.jiku : {}) },
+    voice: { ...d.voice, ...(typeof p.voice === "object" && p.voice ? p.voice : {}) },
+    dialogue: Array.isArray(p.dialogue) ? p.dialogue : [],
+    netadana: Array.isArray(p.netadana) ? p.netadana : [],
+    kotoba: Array.isArray(p.kotoba) ? p.kotoba : [],
+    xposts: Array.isArray(p.xposts) ? p.xposts : [],
+    qcount: Number.isFinite(p.qcount) ? p.qcount : 0,
+    lastExtractedAt: Number.isFinite(p.lastExtractedAt) ? p.lastExtractedAt : 0,
+  };
+}
 let state = load();
 function load() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { /* 壊れていたら初期化 */ }
-  return { apiKey: "", model: "claude-opus-4-8", knowledge: "", katas: [...PRESETS] };
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) {}
+  return defaults();
 }
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 
-// ---------- API呼び出し（ブラウザ→Anthropic直通・中継なし） ----------
-async function callClaude(system, user, schema, maxTokens) {
+// ---------- API ----------
+async function callClaude(system, messages, opts) {
+  const body = { model: MODEL, max_tokens: opts.maxTokens, system, messages };
+  if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-api-key": state.apiKey,
-      "anthropic-version": API_VERSION,
-      // ブラウザから直接呼ぶための公式ヘッダ。キーが第三者サーバーを
-      // 経由しない代わりに、キーの管理責任は利用者自身にあります。
+      "anthropic-version": "2023-06-01",
+      // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
+      // 代わりに、キーの管理はあなた自身の責任になります。
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({
-      model: state.model,
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: user }],
-      output_config: { format: { type: "json_schema", schema } },
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const msg = body?.error?.message || res.statusText;
-    if (res.status === 401) throw new Error("APIキーが無効です。設定を確認してください。");
-    if (res.status === 429) throw new Error("リクエスト過多です。少し待ってから再実行してください。");
-    if (res.status === 400 && /credit/i.test(msg)) throw new Error("クレジット残高が不足しています。Anthropic Consoleでチャージしてください。");
+    const b = await res.json().catch(() => ({}));
+    const msg = b?.error?.message || res.statusText;
+    if (res.status === 401) throw new Error("APIキーが無効です。下の「APIキー」から設定し直してください。");
+    if (res.status === 429) throw new Error("リクエストが多すぎます。少し待ってからもう一度どうぞ。");
+    if (res.status === 400 && /credit/i.test(msg)) throw new Error("Anthropicのクレジット残高が不足しています。Consoleでチャージしてください。");
     throw new Error(`APIエラー (${res.status}): ${msg}`);
   }
   const data = await res.json();
   const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  return JSON.parse(text);
+  return opts.schema ? JSON.parse(text) : text.trim();
 }
 
-const GEN_SCHEMA = {
-  type: "object",
-  properties: { drafts: { type: "array", items: { type: "string" } } },
-  required: ["drafts"], additionalProperties: false,
-};
-const EXTRACT_SCHEMA = {
-  type: "object",
-  properties: { name: { type: "string" }, body: { type: "string" } },
-  required: ["name", "body"], additionalProperties: false,
-};
-
-// ---------- UI ----------
-const $ = id => document.getElementById(id);
-
-function renderSettings() {
-  $("api-key").value = state.apiKey;
-  $("model").value = state.model;
-  $("knowledge").value = state.knowledge;
-  const b = $("key-badge");
-  b.textContent = state.apiKey ? "キー設定済み" : "キー未設定";
-  b.className = "badge" + (state.apiKey ? " ok" : "");
-}
-
-function renderKatas() {
-  const list = $("kata-list");
-  list.innerHTML = "";
-  const sel = $("gen-kata");
-  sel.innerHTML = "";
-  for (const k of state.katas) {
-    const d = document.createElement("details");
-    d.className = "kata-item";
-    const pre = document.createElement("pre"); pre.textContent = k.body;
-    const sum = document.createElement("summary"); sum.textContent = k.name;
-    const del = document.createElement("button");
-    del.className = "danger"; del.textContent = "この型を削除";
-    del.onclick = () => {
-      if (!confirm(`「${k.name}」を削除しますか？`)) return;
-      state.katas = state.katas.filter(x => x.id !== k.id); save(); renderKatas();
-    };
-    d.append(sum, pre, del);
-    list.appendChild(d);
-    const opt = document.createElement("option");
-    opt.value = k.id; opt.textContent = k.name;
-    sel.appendChild(opt);
+// 対話履歴 → API messages 形式
+function dialogueToMessages() {
+  const msgs = [];
+  for (const m of state.dialogue) {
+    if (m.role === "q") msgs.push({ role: "assistant", content: m.text });
+    else msgs.push({ role: "user", content: m.passed ? "（この質問はパスします。角度を変えてください）" : m.text });
   }
-  if (!state.katas.length) list.innerHTML = '<p class="hint">まだ型がありません。下から追加してください。</p>';
+  return msgs;
 }
 
-$("save-settings").onclick = () => {
-  state.apiKey = $("api-key").value.trim();
-  state.model = $("model").value;
-  state.knowledge = $("knowledge").value;
-  save(); renderSettings();
-};
-$("knowledge").onchange = () => { state.knowledge = $("knowledge").value; save(); };
+// ---------- UI ヘルパ ----------
+const $ = id => document.getElementById(id);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
 
-$("add-kata").onclick = () => {
-  const name = $("kata-name").value.trim(), body = $("kata-body").value.trim();
-  if (!name || !body) { alert("型の名前と内容を入力してください"); return; }
-  state.katas.push({ id: "k" + Date.now(), name, body });
-  $("kata-name").value = ""; $("kata-body").value = "";
-  save(); renderKatas();
+// ---------- タブ ----------
+const rooms = { dig: $("room-dig"), jiku: $("room-jiku"), write: $("room-write") };
+const tabs = { dig: $("tab-dig"), jiku: $("tab-jiku"), write: $("tab-write") };
+function showRoom(name) {
+  for (const k of Object.keys(rooms)) {
+    rooms[k].classList.toggle("on", k === name);
+    tabs[k].classList.toggle("on", k === name);
+  }
+  if (name === "jiku") renderJiku();
+  if (name === "write") renderWriteNeta();
+}
+tabs.dig.onclick = () => showRoom("dig");
+tabs.jiku.onclick = () => showRoom("jiku");
+tabs.write.onclick = () => showRoom("write");
+
+// ---------- 部屋1: 引き出す ----------
+// チェックポイント（=直近の回答に軸の整理が付いた状態）では、
+// 次のアクションを「もっと掘る/書く部屋へ」の2択に絞り、入力欄を止める
+function atCheckpoint() {
+  const last = state.dialogue[state.dialogue.length - 1];
+  return !!(last && last.role === "a" && last.checkpoint);
+}
+
+let isSubmitting = false;
+function updateControls() {
+  const lock = isSubmitting || atCheckpoint();
+  $("answer").disabled = lock;
+  $("send-btn").disabled = lock;
+  $("pass-btn").disabled = lock;
+  $("finish-btn").disabled = isSubmitting;
+  $("depth-toggle").disabled = isSubmitting;
+  $("answer").placeholder = atCheckpoint()
+    ? "上の「もっと掘る」か「書く部屋へ」を選んでください"
+    : "思い出したまま、話すように書いてください。音声入力の書き起こしをそのまま貼っても大丈夫です。";
+}
+
+function renderChat() {
+  const chat = $("chat");
+  chat.innerHTML = "";
+  state.dialogue.forEach((m, i) => {
+    const wrap = el("div", "msg " + (m.role === "q" ? "q" : "a"));
+    const body = el("div", "body" + (m.passed ? " passed" : ""), m.passed ? "（パス）" : m.text);
+    wrap.appendChild(body);
+    chat.appendChild(wrap);
+    if (m.checkpoint) {
+      // ボタンは「最後のメッセージのチェックポイント」にだけ付ける
+      // （過去のチェックポイントから質問を重複追加できてしまう事故の防止）
+      const isActive = i === state.dialogue.length - 1;
+      chat.appendChild(renderCheckpoint(m.checkpoint, isActive));
+    }
+  });
+  $("depth-indicator").textContent = state.depth === "honki" ? "深度: 本気（丸裸）" : "深度: ノーマル";
+  updateControls();
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+
+function renderCheckpoint(cp, isActive) {
+  const box = el("div", "checkpoint sans");
+  box.appendChild(el("h3", null, "ここまでで見えてきたもの"));
+  if (cp.kotoba && cp.kotoba.length) {
+    const p = el("p", "hint", "あなたの言葉（原文のまま・このまま投稿に使えます）:");
+    box.appendChild(p);
+    for (const k of cp.kotoba) {
+      const q = el("div", "kotoba");
+      q.textContent = "「" + k + "」";
+      box.appendChild(q);
+    }
+  }
+  const j = cp.jiku || {};
+  if (j.who || j.what || j.why) {
+    box.appendChild(el("div", "jiku-line", "")).innerHTML = "";
+    const lines = [["誰に", j.who], ["何を", j.what], ["なぜあなたが", j.why]];
+    for (const [k, v] of lines) {
+      if (!v) continue;
+      const d = el("div", "jiku-line");
+      const b = el("b", null, k + ": ");
+      d.appendChild(b); d.appendChild(document.createTextNode(v));
+      box.appendChild(d);
+    }
+    box.appendChild(el("p", "hint", "※仮説です。「軸」タブでいつでも直せます。"));
+  }
+  if (isActive) {
+    const row = el("div", "row", "");
+    row.style.marginTop = "10px";
+    const more = el("button", "ghost", "もっと掘る");
+    more.onclick = async () => {
+      if (isSubmitting) return;
+      isSubmitting = true; updateControls();
+      more.disabled = true;
+      const st = $("dig-status");
+      st.innerHTML = '<span class="spin">◐</span> 次の質問を考えています…';
+      try {
+        // askNext()が質問を追加すると、このチェックポイントは「最後のメッセージ」で
+        // なくなるため、再描画でボタンは自動的に消える（重複押下の構造的防止）
+        await askNext();
+      } catch (e) {
+        $("dig-error").textContent = e.message;
+        more.disabled = false; // 失敗時は再試行できるよう戻す
+      }
+      st.textContent = "";
+      isSubmitting = false; updateControls();
+    };
+    const write = el("button", "primary", "書く部屋へ");
+    write.onclick = () => showRoom("write");
+    row.append(more, write);
+    box.appendChild(row);
+  }
+  return box;
+}
+
+function startDialogue(depth) {
+  state.depth = depth;
+  state.started = true;
+  state.dialogue.push({ role: "q", text: FIRST_QUESTION[depth] });
+  save();
+  $("depth-select").hidden = true;
+  $("answer-area").hidden = false;
+  renderChat();
+}
+document.querySelectorAll(".depth-card").forEach(btn => {
+  btn.onclick = () => startDialogue(btn.dataset.depth);
+});
+
+$("depth-toggle").onclick = () => {
+  state.depth = state.depth === "honki" ? "normal" : "honki";
+  state.dialogue.push({ role: "q", text: state.depth === "honki"
+    ? "（深度を「本気」に変えました。ここからは踏み込みます。）"
+    : "（深度を「ノーマル」に戻しました。）" });
+  save(); renderChat();
 };
 
-$("extract-kata").onclick = async () => {
-  const posts = $("past-posts").value.trim();
-  if (!state.apiKey) { alert("先にAPIキーを保存してください"); return; }
-  if (!posts) { alert("過去ポストを貼り付けてください"); return; }
-  const st = $("extract-status");
-  st.innerHTML = '<span class="spin">◐</span> 抽出中…';
-  $("extract-kata").disabled = true;
+async function submitAnswer(passed) {
+  if (isSubmitting || atCheckpoint()) return;
+  const text = $("answer").value.trim();
+  if (!passed && !text) return;
+  $("dig-error").textContent = "";
+
+  if (!state.apiKey) {
+    // 回答を消さずにその場で止め、キー設定を促す（入力は失われない）
+    $("dig-error").textContent = "ここから先はAPIキーが必要です。下の「APIキー」を開いて設定してください（数円/回・このブラウザにのみ保存）。設定後、もう一度「答える」を押せば続きから進みます。";
+    $("key-box").open = true;
+    return;
+  }
+
+  state.dialogue.push({ role: "a", text: passed ? "" : text, passed });
+  if (!passed) state.qcount++;
+  $("answer").value = "";
+  isSubmitting = true;
+  save(); renderChat();
+
+  const st = $("dig-status");
   try {
-    const r = await callClaude(EXTRACT_PROMPT, posts, EXTRACT_SCHEMA, 2000);
-    state.katas.push({ id: "k" + Date.now(), name: r.name, body: r.body });
-    save(); renderKatas();
-    st.textContent = `型「${r.name}」を追加しました。内容を確認・微調整してください。`;
-  } catch (e) { st.textContent = ""; alert(e.message); }
-  $("extract-kata").disabled = false;
+    // 3問ごと: 抽出 → チェックポイント提示（次の質問はユーザーが「もっと掘る」を押してから）
+    if (state.qcount > 0 && state.qcount % CHECKPOINT_EVERY === 0 && state.lastExtractedAt < state.qcount) {
+      st.innerHTML = '<span class="spin">◐</span> ここまでの対話から、あなたの軸を整理しています…';
+      await extract();
+    } else {
+      st.innerHTML = '<span class="spin">◐</span> 次の質問を考えています…';
+      await askNext();
+    }
+  } catch (e) {
+    // 失敗したら回答を履歴から取り下げて入力欄に戻す。
+    // 「同じ質問に回答が2つ並ぶ」履歴破壊を防ぎ、そのまま再送できる
+    state.dialogue.pop();
+    if (!passed) state.qcount--;
+    $("answer").value = text;
+    save();
+    $("dig-error").textContent = e.message + "（入力は戻してあります。もう一度「答える」で再送できます）";
+  }
+  st.textContent = "";
+  isSubmitting = false;
+  renderChat();
+}
+$("send-btn").onclick = () => submitAnswer(false);
+$("pass-btn").onclick = () => submitAnswer(true);
+$("answer").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitAnswer(false);
+});
+
+async function askNext() {
+  const q = await callClaude(socraticSystem(state.depth, state), dialogueToMessages(), { maxTokens: 600 });
+  state.dialogue.push({ role: "q", text: q });
+  save(); renderChat();
+}
+
+async function extract() {
+  const transcript = state.dialogue
+    .map(m => (m.role === "q" ? "AI: " : "ユーザー: ") + (m.passed ? "（パス）" : m.text))
+    .join("\n");
+  const r = await callClaude(EXTRACT_SYSTEM, [{ role: "user", content: transcript }],
+    { maxTokens: 2000, schema: EXTRACT_SCHEMA });
+  // 軸: 本人が一度でも手で保存したら（jikuLocked）、空欄も含めてAIは一切触らない。
+  // 意図的に消した欄が抽出のたびに復活する事故を防ぐため
+  if (!state.jikuLocked) {
+    for (const k of ["who", "what", "why"]) {
+      if (r.jiku[k]) state.jiku[k] = r.jiku[k];
+    }
+    if (r.voice.tone) state.voice = r.voice;
+  }
+  const seen = new Set(state.netadana.map(n => n.quote));
+  for (const n of (r.netadana || [])) {
+    if (!seen.has(n.quote)) state.netadana.push({ id: "n" + Date.now() + Math.floor(Math.random()*1e4), ...n });
+  }
+  for (const k of (r.kotoba || [])) if (!state.kotoba.includes(k)) state.kotoba.push(k);
+  state.lastExtractedAt = state.qcount;
+  // チェックポイントを直近メッセージに添付
+  state.dialogue[state.dialogue.length - 1].checkpoint = { jiku: { ...state.jiku }, kotoba: (r.kotoba || []) };
+  save(); renderChat();
+}
+
+$("finish-btn").onclick = async () => {
+  if (isSubmitting) return;
+  if (!state.qcount) { showRoom("jiku"); return; }
+  if (state.lastExtractedAt < state.qcount && state.apiKey) {
+    isSubmitting = true; updateControls();
+    const st = $("dig-status");
+    st.innerHTML = '<span class="spin">◐</span> ここまでの対話を整理しています…';
+    try { await extract(); } catch (e) { $("dig-error").textContent = e.message; }
+    st.textContent = "";
+    isSubmitting = false; updateControls();
+  }
+  showRoom("jiku");
 };
 
-function currentGenInputs() {
-  const kata = state.katas.find(k => k.id === $("gen-kata").value);
-  return {
-    kata,
-    buzz: $("buzz-post").value.trim(),
-    count: parseInt($("gen-count").value, 10),
-  };
+// ---------- X URL 読み込み（任意・oEmbed） ----------
+$("xurl-btn").onclick = async () => {
+  const url = $("xurl").value.trim();
+  const st = $("xurl-status");
+  if (!url) return;
+  st.textContent = "読み込み中…";
+  try {
+    const res = await fetch("https://publish.twitter.com/oembed?url=" + encodeURIComponent(url) + "&omit_script=true");
+    if (!res.ok) throw new Error("取得できませんでした");
+    const data = await res.json();
+    const doc = new DOMParser().parseFromString(data.html || "", "text/html");
+    const text = (doc.querySelector("blockquote p")?.textContent || "").trim();
+    if (!text) throw new Error("本文を取り出せませんでした");
+    state.xposts.push(text); save();
+    $("xurl").value = "";
+    st.textContent = "読み込みました。";
+    renderXposts();
+  } catch (e) {
+    st.textContent = "読み込めませんでした（鍵アカ・削除済みの可能性）。下の欄に本文を直接貼ってください。";
+  }
+};
+$("xpaste-btn").onclick = () => {
+  const t = $("xpaste").value.trim();
+  if (!t) return;
+  state.xposts.push(t); save();
+  $("xpaste").value = "";
+  renderXposts();
+};
+function renderXposts() {
+  const box = $("xposts-list");
+  box.textContent = state.xposts.length ? `読み込み済みの投稿: ${state.xposts.length}件（対話の材料に使います）` : "";
 }
+
+// ---------- APIキー ----------
+function renderKey() {
+  $("key-badge").textContent = state.apiKey ? "APIキー: 設定済み" : "APIキー: 未設定";
+  $("api-key").value = state.apiKey;
+}
+$("key-save").onclick = () => {
+  state.apiKey = $("api-key").value.trim();
+  save(); renderKey();
+};
+
+// ---------- 部屋2: 軸 ----------
+function renderJiku() {
+  $("jiku-who").value = state.jiku.who;
+  $("jiku-what").value = state.jiku.what;
+  $("jiku-why").value = state.jiku.why;
+  $("voice-tone").value = state.voice.tone;
+  $("jiku-badge").textContent = state.jikuLocked ? "あなたの言葉" : "仮説";
+  const list = $("neta-list");
+  list.innerHTML = "";
+  if (!state.netadana.length) {
+    list.appendChild(el("p", "empty", "まだ空です。「引き出す」の対話から自動で貯まります。"));
+  }
+  for (const n of state.netadana) {
+    const card = el("div", "neta-card sans");
+    card.appendChild(el("div", "t", n.title));
+    const q = el("div", "quote"); q.textContent = "「" + n.quote + "」";
+    card.appendChild(q);
+    const row = el("div", "row");
+    const w = el("button", "ghost", "これで1本書く");
+    w.onclick = () => { showRoom("write"); $("write-input").value = `${n.title}\n${n.quote}`; };
+    const d = el("button", "ghost", "削除");
+    d.onclick = () => { state.netadana = state.netadana.filter(x => x.id !== n.id); save(); renderJiku(); };
+    row.append(w, d);
+    card.appendChild(row);
+    list.appendChild(card);
+  }
+}
+$("jiku-save").onclick = () => {
+  state.jiku = { who: $("jiku-who").value.trim(), what: $("jiku-what").value.trim(), why: $("jiku-why").value.trim() };
+  state.voice.tone = $("voice-tone").value.trim();
+  state.jikuLocked = true; // 本人が触った軸はAIが上書きしない
+  save();
+  $("jiku-badge").textContent = "あなたの言葉";
+  $("jiku-saved").textContent = "保存しました";
+  setTimeout(() => $("jiku-saved").textContent = "", 2000);
+};
+
+// ---------- 部屋3: 書く ----------
+function renderWriteNeta() {
+  const box = $("write-neta");
+  box.innerHTML = "";
+  if (!state.netadana.length) return;
+  const label = el("label", null, "ネタ棚から選ぶ");
+  box.appendChild(label);
+  const row = el("div", "row");
+  for (const n of state.netadana.slice(0, 8)) {
+    const b = el("button", "ghost", n.title);
+    b.onclick = () => { $("write-input").value = `${n.title}\n${n.quote}`; };
+    row.appendChild(b);
+  }
+  box.appendChild(row);
+}
+
+$("write-btn").onclick = async () => {
+  const input = $("write-input").value.trim();
+  $("write-error").textContent = "";
+  if (!state.apiKey) { $("write-error").textContent = "APIキーが未設定です。「引き出す」タブの下部で設定してください。"; return; }
+  if (!input) { $("write-error").textContent = "腹にあるものを書いてください。一言でも構いません。"; return; }
+  const st = $("write-status"); const btn = $("write-btn");
+  st.innerHTML = '<span class="spin">◐</span> あなたの言葉を整えています…（10〜20秒）';
+  btn.disabled = true;
+  try {
+    const r = await callClaude(writeSystem(state),
+      [{ role: "user", content: "## 生の思考\n" + input }],
+      { maxTokens: 3000, schema: WRITE_SCHEMA });
+    const box = $("drafts");
+    box.innerHTML = "";
+    for (const d of r.drafts) {
+      const card = el("div", "draft");
+      card.appendChild(el("div", "label sans", d.label));
+      card.appendChild(document.createTextNode(d.text));
+      const tools = el("div", "tools");
+      const cp = el("button", "ghost sans", "コピー");
+      cp.onclick = async () => {
+        await navigator.clipboard.writeText(d.text);
+        cp.textContent = "コピーしました"; setTimeout(() => cp.textContent = "コピー", 1500);
+      };
+      tools.appendChild(cp);
+      card.appendChild(tools);
+      box.appendChild(card);
+    }
+    $("selfcheck").hidden = false;
+    $("selfcheck").querySelectorAll("input").forEach(c => c.checked = false);
+    st.textContent = "できました。下の3つを確認してから投稿してください。";
+  } catch (e) {
+    st.textContent = "";
+    $("write-error").textContent = e.message;
+  }
+  btn.disabled = false;
+};
 
 $("show-prompt").onclick = () => {
-  const { kata, buzz, count } = currentGenInputs();
-  const p = buildGeneratePrompt(kata ? kata.body : "（型を選択）", state.knowledge, buzz || "（参考ポストを貼り付け）", count);
-  $("prompt-preview").textContent = "=== system ===\n" + p.system + "\n\n=== user ===\n" + p.user;
+  const parts = [
+    "=== 部屋1【引き出す】対話の指示（現在の深度・状態で生成） ===",
+    socraticSystem(state.depth || "normal", state),
+    "",
+    "=== 部屋1【引き出す】3問ごとの構造抽出の指示 ===",
+    EXTRACT_SYSTEM,
+    "",
+    "=== 部屋3【書く】の指示（現在の軸・文体で生成） ===",
+    writeSystem(state),
+  ];
+  $("prompt-preview").textContent = parts.join("\n");
   $("prompt-dialog").showModal();
 };
 
-$("generate").onclick = async () => {
-  const { kata, buzz, count } = currentGenInputs();
-  $("gen-error").textContent = "";
-  if (!state.apiKey) { $("gen-error").textContent = "先にAPIキーを保存してください。"; return; }
-  if (!kata) { $("gen-error").textContent = "先に型を1つ登録してください。"; return; }
-  if (!buzz) { $("gen-error").textContent = "参考ポストを貼り付けてください。"; return; }
-  const st = $("gen-status");
-  st.innerHTML = '<span class="spin">◐</span> 生成中…（10〜30秒ほど）';
-  $("generate").disabled = true;
-  try {
-    const p = buildGeneratePrompt(kata.body, state.knowledge, buzz, count);
-    const r = await callClaude(p.system, p.user, GEN_SCHEMA, 4000);
-    const box = $("drafts");
-    box.innerHTML = "";
-    for (const text of r.drafts) {
-      const d = document.createElement("div");
-      d.className = "draft";
-      d.textContent = text;
-      const tools = document.createElement("div");
-      tools.className = "tools";
-      const btn = document.createElement("button");
-      btn.className = "sub"; btn.textContent = "コピー";
-      btn.onclick = async () => {
-        await navigator.clipboard.writeText(text);
-        btn.textContent = "コピーしました"; setTimeout(() => btn.textContent = "コピー", 1500);
-      };
-      tools.appendChild(btn);
-      d.appendChild(tools);
-      box.appendChild(d);
-    }
-    st.textContent = `${r.drafts.length}案できました。投稿前に内容を必ず確認してください（事実誤認・他者への配慮）。`;
-  } catch (e) {
-    st.textContent = "";
-    $("gen-error").textContent = e.message;
-  }
-  $("generate").disabled = false;
-};
-
-// ---------- データ管理（バックアップ＝りゅうじ版に無かった機能） ----------
-$("export-data").onclick = () => {
-  const data = { ...state, apiKey: "" }; // キーはバックアップに含めない
+// ---------- データ管理 ----------
+$("export-btn").onclick = () => {
+  const data = { ...state, apiKey: "" };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "kata-open-backup.json";
+  a.download = "jiku-open-backup.json";
   a.click();
   URL.revokeObjectURL(a.href);
 };
-$("import-data").onclick = () => $("import-file").click();
+$("import-btn").onclick = () => $("import-file").click();
 $("import-file").onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
   try {
     const data = JSON.parse(await f.text());
-    if (!Array.isArray(data.katas)) throw new Error("形式が違います");
-    state.katas = data.katas;
-    state.knowledge = data.knowledge || "";
-    if (data.model) state.model = data.model;
-    save(); renderKatas(); renderSettings();
+    if (!data || !Array.isArray(data.dialogue)) throw new Error("形式が違います");
+    const key = state.apiKey;
+    state = normalize(data); state.apiKey = key;
+    save(); initRender();
     alert("読み込みました");
   } catch (err) { alert("読み込みに失敗しました: " + err.message); }
   e.target.value = "";
 };
-$("wipe-data").onclick = () => {
-  if (!confirm("APIキーを含む全データをこのブラウザから削除します。よろしいですか？")) return;
+function wipeAll() {
+  if (!confirm("対話・軸・ネタ棚・APIキーを含む全データを、このブラウザから削除します。よろしいですか？")) return;
   localStorage.removeItem(STORE_KEY);
-  state = load(); renderSettings(); renderKatas();
-};
+  state = load();
+  initRender();
+  showRoom("dig");
+}
+$("wipe-btn").onclick = wipeAll;
+$("wipe-btn-dig").onclick = wipeAll;
 
-renderSettings();
-renderKatas();
+// ---------- 初期描画 ----------
+function initRender() {
+  renderKey(); renderXposts(); renderJiku(); renderWriteNeta();
+  if (state.started) {
+    $("depth-select").hidden = true;
+    $("answer-area").hidden = false;
+    renderChat();
+  } else {
+    $("depth-select").hidden = false;
+    $("answer-area").hidden = true;
+    $("chat").innerHTML = "";
+  }
+}
+initRender();
 </script>
 </body>
 </html>
