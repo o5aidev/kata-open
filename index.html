@@ -352,6 +352,7 @@ function socraticSystem(depth, s) {
     "- 相手がパスした質問は深追いせず、角度を変える。**パスされた質問の前提・感情語（例:「悔しい」）は、以降の質問・仮説に一切持ち込まない。** 使ってよいのは相手が実際に口にした言葉だけ。",
     "- 相手の動機や過去を推測する質問より、**具体的な場面を尋ねる質問**（直近の実例・いつ・何を見たか）を優先する。",
     "- 相手に「質問がずれている」「そうは言っていない」と訂正されたら、謝罪は一言で済ませ、**訂正前の解釈を二度と繰り返さない**。相手の訂正後の言葉だけを新しい出発点にする。",
+    "- **相手の回答を代弁・先取りしない。「user」「assistant」のようなラベルや、対話の続き・想定問答を絶対に出力しない。** 出力は次の質問の文面そのものだけ。",
     "- 3問目以降、まだ見えていない材料の領域（躓きの履歴 → 系譜 → 魂の裏 → 魂の表 → 何のために発信したいのか、の優先順）へ、相手の言葉を橋にして1問ずつ自然に移る。一度に複数の領域を聞かない。唐突なアンケートにしない。",
   ];
   const normal = [
@@ -513,6 +514,7 @@ function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 async function callClaude(system, messages, opts) {
   const body = { model: MODEL, max_tokens: opts.maxTokens, system, messages };
   if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
+  if (opts.stop) body.stop_sequences = opts.stop;
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -538,14 +540,30 @@ async function callClaude(system, messages, opts) {
   return opts.schema ? JSON.parse(text) : text.trim();
 }
 
-// 対話履歴 → API messages 形式
+// 対話履歴 → API messages 形式。
+// ①先頭をuserにする（履歴はAIの固定質問=assistantから始まるため、そのまま送ると
+//   assistant先頭になり、モデルが「どちらの番か」を見失って対話の続きを演じる事故が起きた）
+// ②同役割の連続は結合する（深度変更メッセージ等でassistantが連続し得る）
 function dialogueToMessages() {
-  const msgs = [];
+  const msgs = [{ role: "user", content: "（対話を始めてください。あなたから質問をどうぞ）" }];
   for (const m of state.dialogue) {
-    if (m.role === "q") msgs.push({ role: "assistant", content: m.text });
-    else msgs.push({ role: "user", content: m.passed ? "（この質問はパスします。角度を変えてください）" : m.text });
+    const role = m.role === "q" ? "assistant" : "user";
+    const content = m.role === "q" ? m.text
+      : (m.passed ? "（この質問はパスします。角度を変えてください）" : m.text);
+    const last = msgs[msgs.length - 1];
+    if (last.role === role) last.content += "\n" + content;
+    else msgs.push({ role, content });
   }
   return msgs;
+}
+
+// モデルが対話の続き（user/assistantラベル付きの想定問答）を演じ始めた場合の防波堤。
+// 最初のラベル出現位置で切り捨て、質問1つだけを残す
+function truncateRolePlay(t) {
+  let out = t.replace(/^(?:assistant|ai)[\s:：]+/i, "");
+  const m = out.search(/(?:^|[\s　])(?:user|assistant|human|ユーザー)[\s:：]/i);
+  if (m > 0) out = out.slice(0, m);
+  return out.trim();
 }
 
 // ---------- UI ヘルパ ----------
@@ -737,7 +755,13 @@ $("answer").addEventListener("keydown", e => {
 });
 
 async function askNext() {
-  const q = await callClaude(socraticSystem(state.depth, state), dialogueToMessages(), { maxTokens: 600 });
+  const raw = await callClaude(socraticSystem(state.depth, state), dialogueToMessages(), {
+    maxTokens: 600,
+    // 想定問答の演技をAPI側でも物理停止する（後処理truncateRolePlayと二重防御）
+    stop: ["\nuser", "\nassistant", " user ", " assistant "],
+  });
+  const q = truncateRolePlay(raw);
+  if (!q) throw new Error("質問を取り出せませんでした。もう一度お試しください。");
   state.dialogue.push({ role: "q", text: q });
   save(); renderChat();
 }
