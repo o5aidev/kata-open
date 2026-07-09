@@ -627,32 +627,45 @@ function load() {
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
 
 // ---------- API ----------
+// stop_reason を必ず確認する: max_tokens で途中切断された JSON は
+// 「Unterminated string in JSON」で落ちる（v4実テストで発生・1次確認済み）。
+// 切断を検出したら max_tokens を倍にして1回だけ自動リトライし、
+// それでもダメなら生のSyntaxErrorではなく日本語の案内を出す。
 async function callClaude(system, messages, opts) {
-  const body = { model: opts.model || MODEL_ASK, max_tokens: opts.maxTokens, system, messages };
-  if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": state.apiKey,
-      "anthropic-version": "2023-06-01",
-      // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
-      // 代わりに、キーの管理はあなた自身の責任になります。
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    const msg = (b && b.error && b.error.message) || res.statusText;
-    if (res.status === 401) throw new Error("APIキーが無効です。下の「APIキー」から設定し直してください。");
-    if (res.status === 429) throw new Error("リクエストが多すぎます。少し待ってからもう一度どうぞ。");
-    if (res.status === 400 && /credit/i.test(msg)) throw new Error("Anthropicのクレジット残高が不足しています。Consoleでチャージしてください。");
-    throw new Error(`APIエラー (${res.status}): ${msg}`);
+  let maxTokens = opts.maxTokens;
+  for (let attempt = 0; ; attempt++) {
+    const body = { model: opts.model || MODEL_ASK, max_tokens: maxTokens, system, messages };
+    if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": state.apiKey,
+        "anthropic-version": "2023-06-01",
+        // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
+        // 代わりに、キーの管理はあなた自身の責任になります。
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      const msg = (b && b.error && b.error.message) || res.statusText;
+      if (res.status === 401) throw new Error("APIキーが無効です。下の「APIキー」から設定し直してください。");
+      if (res.status === 429) throw new Error("リクエストが多すぎます。少し待ってからもう一度どうぞ。");
+      if (res.status === 400 && /credit/i.test(msg)) throw new Error("Anthropicのクレジット残高が不足しています。Consoleでチャージしてください。");
+      throw new Error(`APIエラー (${res.status}): ${msg}`);
+    }
+    const data = await res.json();
+    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    if (!opts.schema) return text.trim();
+    const truncated = data.stop_reason === "max_tokens";
+    if (!truncated) {
+      try { return JSON.parse(text); } catch (e) { /* 稀な不正JSON → 下のリトライへ */ }
+    }
+    if (attempt === 0) { maxTokens = maxTokens * 2; continue; }
+    throw new Error("AIの出力が途中で切れました。通信が混み合っている可能性があります。もう一度お試しください。");
   }
-  const data = await res.json();
-  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  return opts.schema ? JSON.parse(text) : text.trim();
 }
 
 // 対話履歴 → 聞き手API messages 形式（聞き手は自分の過去質問を文脈として見てよい）。
@@ -886,7 +899,9 @@ async function runJudge() {
   const transcript = userAnswersTranscript();
   if (!transcript) return null;
   const r = await callClaude(judgeSystem(state), [{ role: "user", content: transcript }],
-    { model: MODEL_JUDGE, maxTokens: 2000, schema: JUDGE_SCHEMA });
+    // netadanaのquoteはユーザー発言の原文引用（音声入力の長文があり得る）+ 基準8件分の
+    // value/reason で2000は切断リスクがある。余裕を持たせる
+    { model: MODEL_JUDGE, maxTokens: 4000, schema: JUDGE_SCHEMA });
 
   // テーマ由来の追加基準を（重複なく）追加
   const known = new Set(state.criteria.map(c => c.key));
@@ -942,7 +957,9 @@ async function askNext(targetKey) {
   const target = targetKey ? state.criteria.find(c => c.key === targetKey) : null;
   const targetWithReason = target ? { ...target, reason: (state.marks[target.key] || {}).reason || "" } : null;
   const r = await callClaude(askerSystem(state.depth, targetWithReason, state), askerMessages(),
-    { model: MODEL_ASK, maxTokens: 600, schema: ASK_SCHEMA });
+    // 600では本気深度の質問（仮説+確認の一文）+JSON構造で切断が起きた（実テスト1次確認）。
+    // 出力トークンは生成した分だけの課金なので、上限は余裕を持たせる
+    { model: MODEL_ASK, maxTokens: 2000, schema: ASK_SCHEMA });
   const question = (r.question || "").trim();
   if (!question) throw new Error("質問を取り出せませんでした。もう一度お試しください。");
   state.dialogue.push({ role: "q", ack: (r.ack || "").trim(), text: question, target: targetKey || "" });
@@ -1160,7 +1177,7 @@ $("write-btn").onclick = async () => {
   try {
     const r = await callClaude(writeSystem(state),
       [{ role: "user", content: "## 生の思考\n" + input }],
-      { model: MODEL_ASK, maxTokens: 3000, schema: WRITE_SCHEMA });
+      { model: MODEL_ASK, maxTokens: 4000, schema: WRITE_SCHEMA });
     const box = $("drafts");
     box.innerHTML = "";
     for (const d of r.drafts) {
