@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com https://publish.twitter.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com https://api.openai.com https://publish.twitter.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
 <title>軸オープン — 自分の魂で書けるようになる</title>
 <style>
   :root {
@@ -198,11 +198,26 @@
 
   <details class="box sans" id="key-box">
     <summary><span id="key-badge">APIキー: 未設定</span></summary>
-    <p class="hint">最初の質問に答えた後の続きには Anthropic のAPIキーが必要です（このブラウザにのみ保存・生成1回あたり数円）。
-    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent)">キーの取得はこちら</a></p>
-    <div class="row">
-      <input type="password" id="api-key" placeholder="sk-ant-..." style="flex:1;min-width:200px">
+    <p class="hint">最初の質問に答えた後の続きにはAPIキーが必要です（下で選んだモデルの会社のもの・このブラウザにのみ保存・生成1回あたり数円）。</p>
+    <label>Anthropic APIキー（claude系モデル用） — <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent)">取得はこちら</a></label>
+    <input type="password" id="api-key" placeholder="sk-ant-...">
+    <label>OpenAI APIキー（gpt系モデル用・任意） — <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" style="color:var(--accent)">取得はこちら</a></label>
+    <input type="password" id="openai-key" placeholder="sk-...">
+    <label>モデル: 聞き手・書く — 対話の質の核（既定 claude-opus-4-8）</label>
+    <input type="text" id="model-ask" list="model-list" placeholder="claude-opus-4-8">
+    <label>モデル: 判定器 — 毎ターン走る採点係（既定 claude-sonnet-5）</label>
+    <input type="text" id="model-judge" list="model-list" placeholder="claude-sonnet-5">
+    <datalist id="model-list">
+      <option value="claude-opus-4-8"></option>
+      <option value="claude-sonnet-5"></option>
+      <option value="claude-haiku-4-5"></option>
+      <option value="gpt-5.5"></option>
+      <option value="gpt-5.2"></option>
+    </datalist>
+    <p class="hint">候補にないモデルIDも自由に入力できます。「gpt-」で始まるものはOpenAI、それ以外はAnthropicに送られます。</p>
+    <div class="row" style="margin-top:8px">
       <button class="ghost" id="key-save">保存</button>
+      <span class="hint" id="key-saved"></span>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="danger" id="wipe-btn-dig">全データ削除</button>
@@ -309,9 +324,18 @@
 
 const STORE_KEY = "jikuopen_v2";           // localStorageキー（v2以降据置。中身はnormalizeで移行）
 const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL_ASK   = "claude-opus-4-8";     // 聞き手・整文＝対話の質が商品の魂
-const MODEL_JUDGE = "claude-sonnet-5";     // 判定器＝毎ターン走るのでコスト抑制（Sonnet級）
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const MODEL_ASK_DEFAULT   = "claude-opus-4-8";  // 聞き手・整文＝対話の質が商品の魂
+const MODEL_JUDGE_DEFAULT = "claude-sonnet-5";  // 判定器＝毎ターン走るのでコスト抑制（Sonnet級）
 const EARLY_DRAFT_Q = 5;                   // 5問 or コア基準50%充足の早い方で早期ドラフト提示
+
+// ---------- モデルのカスタム選択とプロバイダ振り分け ----------
+// モデルIDは自由入力可。「gpt-」「o<数字>」で始まればOpenAI、それ以外はAnthropicへ送る。
+function isOpenAIModel(m) { return /^(gpt-|o\d)/i.test(m || ""); }
+function providerName(m) { return isOpenAIModel(m) ? "OpenAI" : "Anthropic"; }
+function mAsk()   { return (state.models && state.models.ask)   || MODEL_ASK_DEFAULT; }
+function mJudge() { return (state.models && state.models.judge) || MODEL_JUDGE_DEFAULT; }
+function keyFor(model) { return isOpenAIModel(model) ? state.openaiKey : state.apiKey; }
 
 // ---------- 固定コア6基準（設計が立つ最小材料。判定器が毎ターン🔴🟡🟢採点） ----------
 const CORE_CRITERIA = [
@@ -532,7 +556,8 @@ function coreDefs() { return CORE_CRITERIA.map(c => ({ ...c, source: "core" }));
 function defaults() {
   return {
     version: 4,
-    apiKey: "", theme: "", depth: "normal", started: false,
+    apiKey: "", openaiKey: "", theme: "", depth: "normal", started: false,
+    models: { ask: "", judge: "" },  // 空文字=既定モデル。自由入力でカスタム可
     dialogue: [],          // {role:"q"|"a"|"sys", text, ack?, passed?, target?}
     qcount: 0,             // 回答済みの数（パス除く）
     criteria: coreDefs(),  // {key,label,desc,source}
@@ -560,6 +585,11 @@ function normalize(p) {
   const out = {
     ...d,
     apiKey: typeof p.apiKey === "string" ? p.apiKey : "",
+    openaiKey: typeof p.openaiKey === "string" ? p.openaiKey : "",
+    models: {
+      ask: (okObj(p.models) && typeof p.models.ask === "string") ? p.models.ask : "",
+      judge: (okObj(p.models) && typeof p.models.judge === "string") ? p.models.judge : "",
+    },
     theme: typeof p.theme === "string" ? p.theme : "",
     depth: p.depth === "honki" ? "honki" : "normal",
     xposts: Array.isArray(p.xposts) ? p.xposts : [],
@@ -627,39 +657,68 @@ function load() {
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
 
 // ---------- API ----------
-// stop_reason を必ず確認する: max_tokens で途中切断された JSON は
-// 「Unterminated string in JSON」で落ちる（v4実テストで発生・1次確認済み）。
-// 切断を検出したら max_tokens を倍にして1回だけ自動リトライし、
-// それでもダメなら生のSyntaxErrorではなく日本語の案内を出す。
-async function callClaude(system, messages, opts) {
+// モデルIDでプロバイダを振り分ける（claude系→Anthropic / gpt系→OpenAI）。
+// どちらもJSONスキーマ強制（v4の絶対条件①はプロバイダを跨いでも維持する）。
+// 途中切断（Anthropic: stop_reason=max_tokens / OpenAI: finish_reason=length）を
+// 検出したら上限を倍にして1回だけ自動リトライし、それでもダメなら日本語の案内を出す。
+async function callLLM(system, messages, opts) {
+  const model = opts.model;
+  const provider = providerName(model);
+  const key = keyFor(model);
+  if (!key) throw new Error(`${provider} のAPIキーが未設定です。下の「APIキー」から設定してください。`);
   let maxTokens = opts.maxTokens;
   for (let attempt = 0; ; attempt++) {
-    const body = { model: opts.model || MODEL_ASK, max_tokens: maxTokens, system, messages };
-    if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": state.apiKey,
-        "anthropic-version": "2023-06-01",
-        // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
-        // 代わりに、キーの管理はあなた自身の責任になります。
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(body),
-    });
+    let res;
+    if (isOpenAIModel(model)) {
+      const body = {
+        model,
+        max_completion_tokens: maxTokens,
+        messages: [{ role: "system", content: system }, ...messages],
+      };
+      if (opts.schema) body.response_format = { type: "json_schema",
+        json_schema: { name: "output", strict: true, schema: opts.schema } };
+      res = await fetch(OPENAI_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+        body: JSON.stringify(body),
+      });
+    } else {
+      const body = { model, max_tokens: maxTokens, system, messages };
+      if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
+      res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
+          // 代わりに、キーの管理はあなた自身の責任になります。
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(body),
+      });
+    }
     if (!res.ok) {
       const b = await res.json().catch(() => ({}));
       const msg = (b && b.error && b.error.message) || res.statusText;
-      if (res.status === 401) throw new Error("APIキーが無効です。下の「APIキー」から設定し直してください。");
-      if (res.status === 429) throw new Error("リクエストが多すぎます。少し待ってからもう一度どうぞ。");
-      if (res.status === 400 && /credit/i.test(msg)) throw new Error("Anthropicのクレジット残高が不足しています。Consoleでチャージしてください。");
-      throw new Error(`APIエラー (${res.status}): ${msg}`);
+      if (res.status === 401) throw new Error(`${provider} のAPIキーが無効です。下の「APIキー」から設定し直してください。`);
+      if (res.status === 404 && isOpenAIModel(model)) throw new Error(`モデル「${model}」が見つかりません。「APIキー」のモデル欄を確認してください。`);
+      if (res.status === 429) throw new Error(`${provider} へのリクエストが多すぎます。少し待ってからもう一度どうぞ。`);
+      if (res.status === 400 && /credit|quota|billing/i.test(msg)) throw new Error(`${provider} のクレジット残高が不足しています。チャージしてください。`);
+      if (res.status === 400 && /model/i.test(msg)) throw new Error(`モデル「${model}」でエラー: ${msg}（「APIキー」のモデル欄を確認してください）`);
+      throw new Error(`${provider} APIエラー (${res.status}): ${msg}`);
     }
     const data = await res.json();
-    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    let text, truncated;
+    if (isOpenAIModel(model)) {
+      const choice = (data.choices || [])[0] || {};
+      text = (choice.message && choice.message.content) || "";
+      truncated = choice.finish_reason === "length";
+    } else {
+      text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+      truncated = data.stop_reason === "max_tokens";
+    }
     if (!opts.schema) return text.trim();
-    const truncated = data.stop_reason === "max_tokens";
     if (!truncated) {
       try { return JSON.parse(text); } catch (e) { /* 稀な不正JSON → 下のリトライへ */ }
     }
@@ -847,8 +906,13 @@ async function submitAnswer(passed) {
     }
   }
 
-  if (!state.apiKey) {
-    $("dig-error").textContent = "ここから先はAPIキーが必要です。下の「APIキー」を開いて設定してください（数円/回・このブラウザにのみ保存）。設定後、もう一度「答える」を押せば続きから進みます。";
+  // このターンで実際に呼ぶモデルのキーだけを要求する
+  // （パスは判定器を走らせない＝聞き手のキーのみ。混在構成で過剰ブロックしない）
+  const needed = passed ? [mAsk()] : [mJudge(), mAsk()];
+  let missing = null;
+  for (const m of needed) if (!keyFor(m)) { missing = providerName(m); break; }
+  if (missing) {
+    $("dig-error").textContent = `ここから先は ${missing} のAPIキーが必要です。下の「APIキー」を開いて設定してください（数円/回・このブラウザにのみ保存）。設定後、もう一度「答える」を押せば続きから進みます。`;
     $("key-box").open = true;
     return;
   }
@@ -898,10 +962,10 @@ $("answer").addEventListener("keydown", e => {
 async function runJudge() {
   const transcript = userAnswersTranscript();
   if (!transcript) return null;
-  const r = await callClaude(judgeSystem(state), [{ role: "user", content: transcript }],
+  const r = await callLLM(judgeSystem(state), [{ role: "user", content: transcript }],
     // netadanaのquoteはユーザー発言の原文引用（音声入力の長文があり得る）+ 基準8件分の
     // value/reason で2000は切断リスクがある。余裕を持たせる
-    { model: MODEL_JUDGE, maxTokens: 4000, schema: JUDGE_SCHEMA });
+    { model: mJudge(), maxTokens: 4000, schema: JUDGE_SCHEMA });
 
   // テーマ由来の追加基準を（重複なく）追加
   const known = new Set(state.criteria.map(c => c.key));
@@ -956,10 +1020,10 @@ function maybeRevealDraft() {
 async function askNext(targetKey) {
   const target = targetKey ? state.criteria.find(c => c.key === targetKey) : null;
   const targetWithReason = target ? { ...target, reason: (state.marks[target.key] || {}).reason || "" } : null;
-  const r = await callClaude(askerSystem(state.depth, targetWithReason, state), askerMessages(),
+  const r = await callLLM(askerSystem(state.depth, targetWithReason, state), askerMessages(),
     // 600では本気深度の質問（仮説+確認の一文）+JSON構造で切断が起きた（実テスト1次確認）。
     // 出力トークンは生成した分だけの課金なので、上限は余裕を持たせる
-    { model: MODEL_ASK, maxTokens: 2000, schema: ASK_SCHEMA });
+    { model: mAsk(), maxTokens: 2000, schema: ASK_SCHEMA });
   const question = (r.question || "").trim();
   if (!question) throw new Error("質問を取り出せませんでした。もう一度お試しください。");
   state.dialogue.push({ role: "q", ack: (r.ack || "").trim(), text: question, target: targetKey || "" });
@@ -971,7 +1035,7 @@ async function digCriterion(key) {
   if (isSubmitting) return;
   const last = state.dialogue[state.dialogue.length - 1];
   if (!last || last.role !== "q") return; // 回答待ちの質問がなければ何もしない
-  if (!state.apiKey) { $("dig-error").textContent = "APIキーが必要です。下の「APIキー」から設定してください。"; $("key-box").open = true; return; }
+  if (!keyFor(mAsk())) { $("dig-error").textContent = `${providerName(mAsk())} のAPIキーが必要です。下の「APIキー」から設定してください。`; $("key-box").open = true; return; }
   isSubmitting = true;
   const st = $("dig-status");
   st.innerHTML = '<span class="spin">◐</span> その材料を狙って質問を組み立てています…';
@@ -995,7 +1059,13 @@ async function finishDialogue() {
   if (!state.qcount) { showRoom("jiku"); return; }
   // まだ判定していない回答が残っていれば（通常フロー漏れ or import）、締める前に判定する
   const ansCount = state.dialogue.filter(m => m.role === "a" && !m.passed && m.text).length;
-  if (ansCount > (state.judgedCount || 0) && state.apiKey) {
+  if (ansCount > (state.judgedCount || 0) && !keyFor(mJudge())) {
+    // キー不足で黙ってスキップすると、未整理の回答が設計書に反映されないまま確定してしまう
+    $("dig-error").textContent = `未整理の回答があります。判定には ${providerName(mJudge())} のAPIキーが必要です。下の「APIキー」から設定してください（確定は保留しました）。`;
+    $("key-box").open = true;
+    return;
+  }
+  if (ansCount > (state.judgedCount || 0)) {
     isSubmitting = true; updateControls();
     const st = $("dig-status");
     st.innerHTML = '<span class="spin">◐</span> ここまでの回答を整理しています…';
@@ -1062,13 +1132,25 @@ function renderXposts() {
 
 // ---------- APIキー ----------
 function renderKey() {
-  $("key-badge").textContent = state.apiKey ? "APIキー: 設定済み" : "APIキー: 未設定";
+  const parts = [];
+  if (state.apiKey) parts.push("Anthropic");
+  if (state.openaiKey) parts.push("OpenAI");
+  const custom = (state.models.ask || state.models.judge) ? "・モデル: カスタム" : "";
+  $("key-badge").textContent = (parts.length ? "APIキー: " + parts.join(" / ") + " 設定済み" : "APIキー: 未設定") + custom;
   $("api-key").value = state.apiKey;
+  $("openai-key").value = state.openaiKey;
+  $("model-ask").value = state.models.ask;
+  $("model-judge").value = state.models.judge;
 }
 $("key-save").onclick = () => {
   if (isSubmitting) return; // API待機中の状態変更を禁止（submit失敗の巻き戻しと競合させない）
   state.apiKey = $("api-key").value.trim();
+  state.openaiKey = $("openai-key").value.trim();
+  state.models.ask = $("model-ask").value.trim();
+  state.models.judge = $("model-judge").value.trim();
   save(); renderKey();
+  $("key-saved").textContent = "保存しました";
+  setTimeout(() => $("key-saved").textContent = "", 2000);
 };
 
 // ---------- 部屋2: 設計書 ----------
@@ -1169,15 +1251,15 @@ $("gate-to-dig").onclick = () => showRoom("dig");
 $("write-btn").onclick = async () => {
   const input = $("write-input").value.trim();
   $("write-error").textContent = "";
-  if (!state.apiKey) { $("write-error").textContent = "APIキーが未設定です。「引き出す」タブの下部で設定してください。"; return; }
+  if (!keyFor(mAsk())) { $("write-error").textContent = `${providerName(mAsk())} のAPIキーが未設定です。「引き出す」タブの下部で設定してください。`; return; }
   if (!input) { $("write-error").textContent = "腹にあるものを書いてください。一言でも構いません。"; return; }
   const st = $("write-status"); const btn = $("write-btn");
   st.innerHTML = '<span class="spin">◐</span> あなたの言葉を整えています…（10〜20秒）';
   btn.disabled = true;
   try {
-    const r = await callClaude(writeSystem(state),
+    const r = await callLLM(writeSystem(state),
       [{ role: "user", content: "## 生の思考\n" + input }],
-      { model: MODEL_ASK, maxTokens: 4000, schema: WRITE_SCHEMA });
+      { model: mAsk(), maxTokens: 4000, schema: WRITE_SCHEMA });
     const box = $("drafts");
     box.innerHTML = "";
     for (const d of r.drafts) {
@@ -1222,7 +1304,7 @@ $("show-prompt").onclick = () => {
 
 // ---------- データ管理 ----------
 $("export-btn").onclick = () => {
-  const data = { ...state, apiKey: "" };
+  const data = { ...state, apiKey: "", openaiKey: "" };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -1240,8 +1322,8 @@ $("import-file").onchange = async e => {
   try {
     const data = JSON.parse(await f.text());
     if (!data || typeof data !== "object") throw new Error("形式が違います");
-    const key = state.apiKey;
-    state = normalize(data); state.apiKey = key;
+    const keys = { apiKey: state.apiKey, openaiKey: state.openaiKey };
+    state = normalize(data); state.apiKey = keys.apiKey; state.openaiKey = keys.openaiKey;
     save(); isSubmitting = false; initRender();
     alert("読み込みました");
   } catch (err) {
@@ -1267,9 +1349,11 @@ $("wipe-btn-dig").onclick = wipeAll;
 function restartDialogue() {
   if (isSubmitting) return;
   if (!confirm("いまの対話と、そこから引き出した設計書・ネタ棚を消して、最初からやり直します。\n（APIキーと読み込んだX投稿は残ります。設計書を残したい場合は、先に「設計書」でコピーかデータ書き出しをしてください）")) return;
-  const kept = { apiKey: state.apiKey, xposts: state.xposts };
+  const kept = { apiKey: state.apiKey, openaiKey: state.openaiKey, models: state.models, xposts: state.xposts };
   state = defaults();
   state.apiKey = kept.apiKey;
+  state.openaiKey = kept.openaiKey;
+  state.models = kept.models;
   state.xposts = kept.xposts;
   save();
   initRender();
