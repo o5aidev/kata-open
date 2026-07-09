@@ -176,7 +176,7 @@
   <div class="answer-area" id="answer-area" hidden>
     <div class="row spread sans" style="margin-bottom:8px">
       <span class="hint" id="depth-indicator"></span>
-      <span><button class="ghost sans" id="depth-toggle">深度を変える</button></span>
+      <span class="row"><button class="ghost sans" id="restart-btn">最初からやり直す</button><button class="ghost sans" id="depth-toggle">深度を変える</button></span>
     </div>
     <textarea id="answer" placeholder="思い出したまま、話すように書いてください。音声入力の書き起こしをそのまま貼っても大丈夫です。"></textarea>
     <div class="row spread">
@@ -508,6 +508,7 @@ function updateControls() {
   $("pass-btn").disabled = lock;
   $("finish-btn").disabled = isSubmitting;
   $("depth-toggle").disabled = isSubmitting;
+  $("restart-btn").disabled = isSubmitting;
   $("answer").placeholder = atCheckpoint()
     ? "上の「もっと掘る」か「書く部屋へ」を選んでください"
     : "思い出したまま、話すように書いてください。音声入力の書き起こしをそのまま貼っても大丈夫です。";
@@ -883,6 +884,21 @@ function wipeAll() {
 }
 $("wipe-btn").onclick = wipeAll;
 $("wipe-btn-dig").onclick = wipeAll;
+
+// 「最初からやり直す」: 対話と、そこから引き出したもの（軸・声・ネタ棚・言葉）をリセット。
+// APIキーと読み込んだX投稿は残す（毎回のキー再入力を強いない）。
+// 軸・ネタ棚を残すと次の対話のsystem promptに前回の文脈が混入するため、まとめて消す。
+function restartDialogue() {
+  if (isSubmitting) return;
+  if (!confirm("いまの対話と、そこから引き出した軸・ネタ棚・言葉を消して、最初からやり直します。\n（APIキーと読み込んだX投稿は残ります。軸やネタ棚を残したい場合は、先に「軸」の部屋でデータ書き出しをしてください）")) return;
+  const kept = { apiKey: state.apiKey, xposts: state.xposts };
+  state = defaults();
+  state.apiKey = kept.apiKey;
+  state.xposts = kept.xposts;
+  save();
+  initRender();
+}
+$("restart-btn").onclick = restartDialogue;
 
 // ---------- 初期描画 ----------
 function initRender() {
