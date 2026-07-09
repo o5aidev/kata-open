@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com https://publish.twitter.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.anthropic.com https://api.openai.com https://publish.twitter.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
 <title>軸オープン — 自分の魂で書けるようになる</title>
 <style>
   :root {
     --bg: #12141a; --panel: #1a1d26; --panel2: #22262f; --line: #2e3340;
     --text: #e9ebf0; --sub: #9298a8; --accent: #d8b26e; --accent-dim: #8a744f;
-    --green: #6fbf9a; --danger: #e07a7a; --q-bg: #1e2230;
+    --green: #6fbf9a; --yellow: #d8b26e; --danger: #e07a7a; --q-bg: #1e2230;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -30,32 +30,41 @@
   .room { display: none; padding-top: 22px; }
   .room.on { display: block; }
 
-  /* ---- 引き出す ---- */
-  .depth-choice { display: grid; gap: 12px; margin: 18px 0; }
-  .depth-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 18px; cursor: pointer; text-align: left; color: var(--text); font-family: inherit; font-size: 15px; }
-  .depth-card:hover { border-color: var(--accent-dim); }
-  .depth-card b { display: block; font-size: 16.5px; margin-bottom: 6px; letter-spacing: .08em; }
-  .depth-card .note { color: var(--sub); font-size: 13px; line-height: 1.7; }
-  .depth-card.honki b { color: var(--accent); }
+  /* ---- テーマ入力 ---- */
+  .theme-lead { font-size: 15.5px; margin: 6px 0 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 99px;
+    color: var(--text); font-family: inherit; font-size: 13px; padding: 7px 14px; cursor: pointer; }
+  .chip:hover { border-color: var(--accent-dim); color: var(--accent); }
 
+  /* ---- 引き出す ---- */
   .chat { margin-top: 8px; }
   .msg { margin: 18px 0; }
+  .msg.q .ack { color: var(--sub); font-size: 13px; margin: 0 0 5px 2px; font-style: italic; }
   .msg.q .body { background: var(--q-bg); border-left: 3px solid var(--accent-dim);
-    padding: 14px 16px; border-radius: 0 10px 10px 0; font-size: 15.5px; }
+    padding: 14px 16px; border-radius: 0 10px 10px 0; font-size: 15.5px; white-space: pre-wrap; }
   .msg.a .body { color: var(--text); padding: 4px 2px 4px 18px; font-size: 15px;
     border-left: 1px solid var(--line); margin-left: 24px; white-space: pre-wrap; }
   .msg.a .body.passed { color: var(--sub); font-style: italic; }
   .msg.sys .body { color: var(--sub); font-size: 13px; text-align: center; padding: 4px; }
 
-  .checkpoint { background: var(--panel); border: 1px solid var(--accent-dim); border-radius: 10px;
-    padding: 18px; margin: 22px 0; }
-  .checkpoint h3 { margin: 0 0 10px; font-size: 15px; color: var(--accent); letter-spacing: .1em; }
-  .checkpoint .kotoba { border-left: 3px solid var(--accent); padding: 6px 14px; margin: 10px 0;
-    font-size: 15.5px; }
-  .checkpoint .kotoba small { display: block; color: var(--sub); font-size: 12px; margin-top: 2px; }
-  .jiku-line { font-size: 14px; color: var(--sub); margin: 4px 0; }
-  .jiku-line b { color: var(--text); font-weight: 600; }
+  /* ---- 進捗ボード（材料の宣言＋🔴🟡🟢＋早期ドラフト） ---- */
+  .board { background: var(--panel); border: 1px solid var(--accent-dim); border-radius: 10px;
+    padding: 16px; margin: 22px 0; }
+  .board h3 { margin: 0 0 4px; font-size: 14.5px; color: var(--accent); letter-spacing: .08em; }
+  .board .tally { font-size: 12.5px; color: var(--sub); margin: 0 0 10px; }
+  .crit-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .crit-chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--text); font-family: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; }
+  .crit-chip:hover { border-color: var(--accent-dim); }
+  .crit-chip .mk { font-size: 12px; }
+  .draft-body { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .draft-line { font-size: 14px; margin: 8px 0; }
+  .draft-line .lab { color: var(--sub); font-size: 12.5px; }
+  .draft-line .val { color: var(--text); }
+  .draft-line .rz { color: var(--danger); font-size: 12px; display: block; margin-top: 2px; }
+  .draft-line .rz.y { color: var(--yellow); }
 
   .answer-area { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 18px;
     border-top: 1px solid var(--line); margin-top: 24px; }
@@ -143,19 +152,14 @@
 <!-- ================= 部屋1: 引き出す ================= -->
 <section id="room-dig" class="room on">
 
-  <div id="depth-select">
-    <p style="font-size:15px">まず、どこまで踏み込んでいいかを選んでください。<span class="hint">（対話の途中でいつでも変えられます）</span></p>
-    <p class="hint sans">まず3問・約3分で、仮の設計書が出ます。ピンとこない質問はパスして大丈夫です。</p>
-    <div class="depth-choice">
-      <button class="depth-card" data-depth="normal">
-        <b>ノーマル</b>
-        <span class="note">気軽に始める。日常の小さな引っかかりから、あなたの視点を探します。</span>
-      </button>
-      <button class="depth-card honki" data-depth="honki">
-        <b>本気（丸裸）</b>
-        <span class="note">鋭い質問をします。痛いところに触れるかもしれません。<br>
-        すべて、あなたの中身を引き出すためです。本気の人だけ選んでください。</span>
-      </button>
+  <div id="theme-select">
+    <p class="theme-lead">まず、あなたが<b>本当はどうしたいか</b>——北極星を教えてください。<span class="hint">（うまく言えなくても大丈夫。対話しながら形にします）</span></p>
+    <p class="hint sans">きれいな言葉でなくて構いません。一言でも、下の候補から選んでも。</p>
+    <textarea id="theme-input" placeholder="例）受け取った恩を、次の人に返したい／許せない構造がある、声を上げたい／自分がやってきたことを誰かの役に立てたい"></textarea>
+    <div class="chips sans" id="theme-chips"></div>
+    <div class="row spread" style="margin-top:10px">
+      <span class="hint sans">3問・約3分で、仮の設計書が出ます。ピンとこない質問はパスして大丈夫です。</span>
+      <button class="primary" id="theme-start">はじめる</button>
     </div>
     <details class="box sans">
       <summary>すでにXで投稿したことがある方（任意・なくても大丈夫です）</summary>
@@ -173,6 +177,7 @@
   </div>
 
   <div class="chat" id="chat"></div>
+  <div class="board sans" id="board" hidden></div>
   <p class="err" id="dig-error"></p>
 
   <div class="answer-area" id="answer-area" hidden>
@@ -193,15 +198,52 @@
 
   <details class="box sans" id="key-box">
     <summary><span id="key-badge">APIキー: 未設定</span></summary>
-    <p class="hint">最初の質問に答えた後の続きには Anthropic のAPIキーが必要です（このブラウザにのみ保存・生成1回あたり数円）。
-    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent)">キーの取得はこちら</a></p>
-    <div class="row">
-      <input type="password" id="api-key" placeholder="sk-ant-..." style="flex:1;min-width:200px">
+    <p class="hint">最初の質問に答えた後の続きにはAPIキーが必要です（下で選んだモデルの会社のもの・このブラウザにのみ保存・生成1回あたり数円）。</p>
+    <label>Anthropic APIキー（claude系モデル用） — <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent)">取得はこちら</a></label>
+    <input type="password" id="api-key" placeholder="sk-ant-...">
+    <label>OpenAI APIキー（gpt系モデル用・任意） — <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" style="color:var(--accent)">取得はこちら</a></label>
+    <input type="password" id="openai-key" placeholder="sk-...">
+    <label>モデル: 聞き手・書く — 対話の質の核（既定 claude-opus-4-8）</label>
+    <input type="text" id="model-ask" list="model-list" placeholder="claude-opus-4-8">
+    <label>モデル: 判定器 — 毎ターン走る採点係（既定 claude-sonnet-5）</label>
+    <input type="text" id="model-judge" list="model-list" placeholder="claude-sonnet-5">
+    <datalist id="model-list">
+      <option value="claude-opus-4-8"></option>
+      <option value="claude-sonnet-5"></option>
+      <option value="claude-haiku-4-5"></option>
+      <option value="gpt-5.5"></option>
+      <option value="gpt-5.2"></option>
+    </datalist>
+    <p class="hint">候補にないモデルIDも自由に入力できます。「gpt-」で始まるものはOpenAI、それ以外はAnthropicに送られます。</p>
+    <div class="row" style="margin-top:8px">
       <button class="ghost" id="key-save">保存</button>
+      <span class="hint" id="key-saved"></span>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="danger" id="wipe-btn-dig">全データ削除</button>
       <span class="hint">対話の内容はこのブラウザにしか存在しません。いつでも消せます。</span>
+    </div>
+  </details>
+
+  <details class="box sans" id="persona-box">
+    <summary>🎭 テスト走行 — AIに被験者を演じさせる（検証用）</summary>
+    <p class="hint">架空の人物にツールを通させて、質問と設計書の品質を確かめる機能です。
+    この走行で出た設計書は<b>シミュレーション</b>であり、あなたの言葉ではありません（画面と書き出しに🎭が付きます）。</p>
+    <label>人物設定（年齢・立場・状態など。数行でOK）</label>
+    <textarea id="persona-spec" style="min-height:70px" placeholder="例）男性43歳。2法人経営。出鱈目な世の中に嫌気がさしている。言葉にできないけど、何か発信したい"></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="ghost" id="persona-deepen">①人物を深める（任意）</button>
+      <span class="hint" id="persona-deepen-status"></span>
+    </div>
+    <label>半生ジャーニー（①で自動生成・手直し可。回答の一貫性が上がります）</label>
+    <textarea id="persona-journey" style="min-height:60px" placeholder="（任意。転機のエピソード・内面の変化など）"></textarea>
+    <label>被験者モデル（空欄=判定器と同じ。聞き手と別プロバイダにすると相互チェックになります）</label>
+    <input type="text" id="persona-model" list="model-list" placeholder="gpt-5.5">
+    <label>自動で答える回数（最大15）</label>
+    <input type="text" id="persona-turns" value="7">
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="persona-run">②自動で走らせる</button>
+      <span class="hint" id="persona-status"></span>
     </div>
   </details>
 
@@ -212,21 +254,12 @@
   <div class="jiku-card">
     <h3>あなたのコンセプト設計書 <span class="badge sans" id="jiku-badge">仮説</span></h3>
     <p class="hint">対話からAIが組み立てた仮説です。違うと感じたら、あなたの言葉に直してください。直した瞬間から、これはあなたのものです。<br>
-    投稿はここから自然に出ます。逆に、ここが空のまま投稿だけ量産しても続きません。</p>
+    🔴＝まだ設計が立たない／🟡＝薄い／🟢＝十分。投稿はここから自然に出ます。ここが空のまま投稿だけ量産しても続きません。</p>
 
-    <label>① 魂・表 — 感謝している恩。大事にしたい循環</label>
-    <textarea id="sh-omote" class="sheet-ta" placeholder="（対話から推定されます）"></textarea>
-    <label>① 魂・裏 — どうしても見てらんないもの。許せない構造</label>
-    <textarea id="sh-ura" class="sheet-ta" placeholder="（対話から推定されます）"></textarea>
-    <label>② 系譜 — 誰から、何を受け取ったか</label>
-    <textarea id="sh-keifu" class="sheet-ta" placeholder="（対話から推定されます）"></textarea>
-    <label>③ 躓きの履歴 — 自分でやってみて、うまくいかなかった経験</label>
-    <textarea id="sh-tsumazuki" class="sheet-ta" placeholder="（対話から推定されます）"></textarea>
-    <label>④ 誰に</label><input type="text" id="sh-who" placeholder="（対話から推定されます）">
-    <label>④ 何を</label><input type="text" id="sh-what" placeholder="（対話から推定されます）">
-    <label>④ なぜ、あなたが語れるのか</label><input type="text" id="sh-why" placeholder="（対話から推定されます）">
-    <label>⑤ 声 — 一人称・口調</label><input type="text" id="voice-tone" placeholder="例）一人称は「俺」。断定調。絵文字なし">
-    <label>⑥ やらないこと — 発信で絶対にやらないと決めること</label>
+    <div id="sheet-fields"></div>
+
+    <label>声 — 一人称・口調</label><input type="text" id="voice-tone" placeholder="例）一人称は「俺」。断定調。絵文字なし">
+    <label>やらないこと — 発信で絶対にやらないと決めること</label>
     <textarea id="sh-yaranai" class="sheet-ta" placeholder="例）誇張しない。個人を叩かない。買っていない物を勧めない"></textarea>
 
     <div class="row" style="margin-top:12px">
@@ -249,7 +282,7 @@
 
 <!-- ================= 部屋3: 書く ================= -->
 <section id="room-write" class="room">
-  <div class="checkpoint sans" id="write-gate" hidden>
+  <div class="board sans" id="write-gate" hidden>
     <h3>先に、設計書を作ってください</h3>
     <p style="font-size:14px;margin:0 0 10px">この部屋はおまけです。魂が言葉になっていない状態で投稿だけ作っても、続きません。<br>
     「引き出す」の対話で設計書の①魂が埋まると、ここが使えるようになります（「設計書」タブで自分の手で書いてもかまいません）。</p>
@@ -296,94 +329,113 @@
 <script>
 "use strict";
 // ============================================================
-// 軸オープン v3 — 全コード公開・完全クライアントサイド
+// 軸オープン v4 — 全コード公開・完全クライアントサイド
 // 出口は投稿ではなく「コンセプト設計書」。書く部屋はおまけ。
-// 通信先は api.anthropic.com（生成）と publish.twitter.com
-// （X投稿の読み込み・任意）のみ。CSPで構造的に制限しています。
+//
+// v4 の設計（v3実テスト失敗＝台本化バグ・ラベル変異すり抜けを受けて）:
+//  1. 全ターンJSONスキーマ強制（質問={ack,question}・判定・ドラフト全部）。
+//     文字列フィルタ（v3の3層防御）は生成モデルの変異ラベルで必ず抜けられる。
+//     出力の自由度を構造で奪う＝スキーマ強制でしか塞げない。
+//  2. 判定・抽出はユーザーの実回答だけを材料にする（AIの発言を一切読まない）。
+//     上流の捏造が下流で正規データ化する汚染連鎖を、材料の入口で断つ。
+//  3. 判定器はSonnet（採点＋抽出＋次の角度を毎ターン担当）、聞き手・整文はOpus。
+//
+// 通信先は api.anthropic.com（生成）と publish.twitter.com（X投稿読込・任意）のみ。
+// CSPで構造的に制限しています。
 // ============================================================
 
-const STORE_KEY = "jikuopen_v2";
+const STORE_KEY = "jikuopen_v2";           // localStorageキー（v2以降据置。中身はnormalizeで移行）
 const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-opus-4-8"; // 対話の精度が商品の魂。数円/問の差なら品質を取る
-const CHECKPOINT_EVERY = 3; // 3問ごとに設計書の断片を提示
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const MODEL_ASK_DEFAULT   = "claude-opus-4-8";  // 聞き手・整文＝対話の質が商品の魂
+const MODEL_JUDGE_DEFAULT = "claude-sonnet-5";  // 判定器＝毎ターン走るのでコスト抑制（Sonnet級）
+const EARLY_DRAFT_Q = 5;                   // 5問 or コア基準50%充足の早い方で早期ドラフト提示
 
-// ---------- 1問目の質問プール（API不要 = キーがなくても始められる） ----------
-// 固定1問だと「その質問に心当たりがない人」が入口で詰む（実テストで発生）。
-// ランダムに選び、パスされたらAPIを使わず即・別の質問を出す。
-// どの入口から入っても、掘る先（躓き・系譜・魂の表裏）には対話の中で橋を架ける
-const FIRST_QUESTIONS = {
-  normal: [
-    "最近、ちょっと引っかかったこと・気になったことはありますか？\n仕事でも日常でも、小さなことで構いません。",
-    "つい人に話したくなったことはありますか？\n最近のことでも、ずっと覚えていることでも。",
-    "「なんでみんな、これをやらないんだろう」と思ったことはありますか？",
-    "時間を忘れてやってしまったことは何ですか？",
-    "今の自分に残っている、誰かの言葉や振る舞いはありますか？",
-    "昔は分からなかったけれど、今になって意味が分かったことはありますか？",
-  ],
-  honki: [
-    "悔しかったことは何ですか？\n最近のことでも、ずっと引きずっていることでも。きれいにまとめなくて構いません。",
-    "見ていられない、と感じるものは何ですか？\n世の中のことでも、身近なことでも。",
-    "自分でやってみて、うまくいかなかったことは何ですか？\n挫折したまま放ってあるものでも構いません。",
-    "人からしてもらって、今度は自分が誰かに返したいと思っていることはありますか？",
-    "本当は言いたいのに、言わずに飲み込んでいることは何ですか？",
-    "「それは違うんじゃないか」と感じているのに、周りはそう思っていないことはありますか？",
-  ],
-};
-// まだ出していないプール質問をランダムに1つ選ぶ（全部使い切ったらnull）
-function pickFirstQuestion(depth) {
-  const pool = FIRST_QUESTIONS[depth];
-  const used = state.usedQ[depth];
-  const rest = pool.map((_, i) => i).filter(i => !used.includes(i));
+// ---------- モデルのカスタム選択とプロバイダ振り分け ----------
+// モデルIDは自由入力可。「gpt-」「o<数字>」で始まればOpenAI、それ以外はAnthropicへ送る。
+function isOpenAIModel(m) { return /^(gpt-|o\d)/i.test(m || ""); }
+function providerName(m) { return isOpenAIModel(m) ? "OpenAI" : "Anthropic"; }
+function mAsk()   { return (state.models && state.models.ask)   || MODEL_ASK_DEFAULT; }
+function mJudge() { return (state.models && state.models.judge) || MODEL_JUDGE_DEFAULT; }
+function keyFor(model) { return isOpenAIModel(model) ? state.openaiKey : state.apiKey; }
+
+// ---------- 固定コア6基準（設計が立つ最小材料。判定器が毎ターン🔴🟡🟢採点） ----------
+const CORE_CRITERIA = [
+  { key:"tamashiiOmote", label:"魂・表",     desc:"感謝している恩・大事にしたい循環。誰かから受け取って、大事にしたいと思っているもの" },
+  { key:"tamashiiUra",   label:"魂・裏",     desc:"どうしても見てらんないもの・放っておけない違和感・許せない構造" },
+  { key:"keifu",         label:"系譜",       desc:"本当に腹落ちした人・教え。そこから何を受け取ったか" },
+  { key:"tsumazuki",     label:"躓きの履歴", desc:"自分でやってみて、うまくいかなかった経験（これが一番の資産）" },
+  { key:"reader",        label:"誰に・何を", desc:"誰に向けて、何を語れるか" },
+  { key:"tachiichi",     label:"なぜあなたが", desc:"なぜこの人が語れるのか＝立ち位置（体験の裏付け）" },
+];
+const CORE_KEYS = CORE_CRITERIA.map(c => c.key);
+
+// 北極星を書けない人向けの候補（クリックで入力欄に入る・自動送信はしない）
+const THEME_CHIPS = [
+  "受け取った恩を、次の人に返したい",
+  "許せない構造がある。声を上げたい",
+  "自分がやってきたことを、誰かの役に立てたい",
+  "同じ場所でつまずいた人の背中を押したい",
+  "まだ言葉にできないけど、何か発信したい",
+];
+
+// ---------- 1問目（API不要＝キーがなくても始められる。テーマがあればそれを起点に） ----------
+function openingQuestion(theme) {
+  const t = (theme || "").trim();
+  if (t) return `「${t}」——そう思うようになったのは、どんな出来事がきっかけでしたか？\nいつ・どこで・何があったか、思い出せる範囲で、話すように書いてください。`;
+  return "最近、心に引っかかって離れないことはありますか？\n仕事でも日常でも、小さなことで構いません。";
+}
+// 1問目をパスされたときの代替（APIを使わず即出す）
+const FALLBACK_OPENERS = [
+  "誰かに「それは違う」と言いたくなったことはありますか？",
+  "自分でやってみて、うまくいかなかったことは何ですか？\n挫折したまま放ってあるものでも構いません。",
+  "人からしてもらって、今度は自分が誰かに返したいと思っていることはありますか？",
+  "時間を忘れてやってしまうことは何ですか？",
+  "昔は分からなかったけれど、今になって意味が分かったことはありますか？",
+];
+function pickFallbackOpener() {
+  const used = state.usedOpeners || [];
+  const rest = FALLBACK_OPENERS.map((_, i) => i).filter(i => !used.includes(i));
   if (!rest.length) return null;
   const i = rest[Math.floor(Math.random() * rest.length)];
-  state.usedQ[depth].push(i);
-  return pool[i];
-}
-
-// ---------- 設計書のフィールド定義（部屋2・抽出・プロンプトで共有） ----------
-const SHEET_FIELDS = [
-  ["tamashiiOmote", "魂・表", "感謝している恩・大事にしたい循環"],
-  ["tamashiiUra",   "魂・裏", "どうしても見てらんないもの・許せない構造"],
-  ["keifu",         "系譜",   "誰から何を受け取ったか"],
-  ["tsumazuki",     "躓きの履歴", "自分でやってみて、うまくいかなかった経験"],
-  ["who",           "誰に",   "誰に向けて語れそうか"],
-  ["what",          "何を",   "何を語れそうか"],
-  ["why",           "なぜこの人が", "なぜこの人が語れるのか（体験の裏付け）"],
-  ["yaranai",       "やらないこと", "本人が「やらない」と語ったこと"],
-];
-function sheetLines(s) {
-  const out = [];
-  for (const [key, label] of SHEET_FIELDS) {
-    if (s.sheet[key]) out.push(`${label}: ${s.sheet[key]}`);
-  }
-  return out;
+  state.usedOpeners.push(i);
+  return FALLBACK_OPENERS[i];
 }
 
 // ---------- プロンプト（ここが全部見せたい中身です） ----------
-function socraticSystem(depth, s) {
+
+// 聞き手（Opus）: 出力は {ack, question} のJSONに構造強制。
+// これにより「対話の続き・想定問答（user/assistantラベル）」を物理的に出力できない。
+function askerSystem(depth, target, s) {
   const base = [
     "あなたはソクラテス式の聞き手です。相手は「何を発信していいかわからない」と感じている人。",
     "目的は、質問だけで相手の魂——本当に語れるもの——の材料を引き出すこと。教えることではありません。",
     "",
-    "# 引き出したい材料（発信のコンセプト設計書になります）",
-    "- 魂・表: 感謝している恩。誰かから受け取って、大事にしたいと思っているもの",
-    "- 魂・裏: どうしても見てらんないもの。放っておけない違和感・許せない構造",
-    "- 系譜: 本当に腹落ちした教えや人。そこから何を受け取ったか",
-    "- 躓きの履歴: 自分でやってみて、うまくいかなかった経験（これが一番の資産です）",
-    "- 具体的な体験: いつ・どこで・何を見たか",
+    "# 出力形式（厳守）",
+    "- ack: 短い受け止め（10〜25字・任意・不要なら空文字）。励まし・要約・アドバイス・説教は書かない。",
+    "- question: 次の質問1つだけ。",
+    "- あなたが出すのは自分（聞き手）の1ターン分だけ。相手の回答を代弁・先取りしない。",
     "",
-    "# 絶対のルール",
-    "- 返答は【短い受け止め（10〜25字・任意）＋次の質問1つ】だけ。励まし・要約・アドバイス・説教は書かない。",
-    "- 相手の言葉の引用は、話題を接続するときと解釈を確認するときだけ使う。毎回は引用しない。同じ語を連続して引用しない。",
-    "- 説教・上から目線・過剰な称賛は禁止。",
+    "# 引き出したい材料（発信のコンセプト設計書になります）",
+    ...CORE_CRITERIA.map(c => `- ${c.label}: ${c.desc}`),
+    "",
+    "# 質問の作り方",
+    "- 相手の動機や過去を推測する質問より、具体的な場面を尋ねる質問（直近の実例・いつ・どこで・何を見たか）を優先する。",
+    "- 直前の回答に具体的な場面・感情・固有名詞があれば、まずそこを1段だけ深掘りする。",
+    "- 相手の言葉の引用は、話題を接続するときと解釈を確認するときだけ。毎回・同じ語を連続して引用しない。",
     "- 相手の入力は音声認識の書き起こしで乱れていることがある。誤字は無視して意味を汲む。",
-    "- 相手がパスした質問は深追いせず、角度を変える。**パスされた質問の前提・感情語（例:「悔しい」）は、以降の質問・仮説に一切持ち込まない。** 使ってよいのは相手が実際に口にした言葉だけ。",
-    "- 相手の動機や過去を推測する質問より、**具体的な場面を尋ねる質問**（直近の実例・いつ・何を見たか）を優先する。",
-    "- 相手に「質問がずれている」「そうは言っていない」と訂正されたら、質問の前に謝罪を一言だけ添えてよい（唯一の例外）。**訂正前の解釈を二度と繰り返さない**。相手の訂正後の言葉だけを新しい出発点にする。",
-    "- **相手の回答を代弁・先取りしない。「user」「assistant」のようなラベルや、対話の続き・想定問答を絶対に出力しない。** 出力は自分（聞き手）の1ターン分だけ。",
-    "- 領域の固定巡回をしない。直前の回答に具体的な場面・感情・固有名詞があれば、まずそこを1段だけ深掘りする。別の材料領域へ移るのは、本人の発言に自然な接続があるとき、または同じ領域を2問掘って材料が増えないときだけ。**終了までに全領域を埋める必要はない。**",
-    "- 「何のために発信したいのか」は、本人の体験が十分に語られる前に聞かない（模範回答を作らせてしまう）。聞くなら対話の終盤に一度だけ。",
+    "- パスされた質問は深追いせず角度を変える。パスされた質問の前提・感情語（例:「悔しい」）は以降に一切持ち込まない。使ってよいのは相手が実際に口にした言葉だけ。",
+    "- 相手に「質問がずれている」「そうは言っていない」と訂正されたら、ackで一言だけ詫び、訂正後の言葉だけを新しい出発点にする。訂正前の解釈は二度と繰り返さない。",
+    "- 「何のために発信したいのか」は、体験が十分に語られる前に聞かない（模範回答を作らせてしまう）。聞くなら終盤に一度だけ。",
   ];
+  if (target) {
+    base.push(
+      "",
+      "# いま集めたい材料（この角度を優先。ただし相手の直前の熱がそこから逸れるなら、無理に引き戻さない）",
+      `- ${target.label}: ${target.desc}`,
+      target.reason ? `- 現在この材料が弱い理由: ${target.reason}` : "",
+    );
+  }
   const normal = [
     "",
     "# 深度: ノーマル",
@@ -394,53 +446,90 @@ function socraticSystem(depth, s) {
     "",
     "# 深度: 本気",
     "- 遠慮しない。感情の核心（何を守りたいのか・なぜ放っておけないのか）まで踏み込む。",
-    "- 仮説をぶつけてよい。ただし条件が3つ: ①仮説は**相手が実際に使った言葉**から組み立てる（勝手な物語・身の上の推測で作らない） ②**1回に仮説は1つだけ**（「AだからかBだからか」の二択で迫らない） ③必ず「違ったら違うと言ってください」を添える。",
+    "- 仮説をぶつけてよい。条件3つ: ①仮説は相手が実際に使った言葉から組み立てる（勝手な物語・身の上の推測で作らない） ②1回に仮説は1つだけ ③questionに「違ったら違うと言ってください」を添える。",
     "- それでも尋問にはしない。相手のペースを尊重する。",
   ];
   const ctx = [];
   if (s.xposts.length) {
     ctx.push("", "# 相手の過去の投稿（参考。これを踏まえた質問をしてよい）", ...s.xposts.map(p => "- " + p));
   }
-  const sh = sheetLines(s);
-  if (sh.length) {
-    ctx.push("", "# ここまでに見えている設計書の断片（仮説・参考。空欄を埋めるためではなく、相手の熱があるところを掘る）", ...sh);
-  }
-  return base.concat(depth === "honki" ? honki : normal).concat(ctx).join("\n");
+  if (s.theme) ctx.push("", "# 相手が最初に語った北極星（参考）", "- " + s.theme);
+  return base.concat(depth === "honki" ? honki : normal).concat(ctx).filter(Boolean).join("\n");
 }
 
-const EXTRACT_SYSTEM = [
-  "以下はAI（質問者）とユーザー（回答者）の対話です。ユーザーの回答**だけ**を材料に、発信のコンセプト設計書の断片を抽出してください。",
-  "",
-  "1. sheet: 設計書の仮説。まだ見えない項目は空文字。各項目は1〜2行で、**本人が使った名詞・動詞・感情語をできる限りそのまま残す**。抽象語への言い換え、因果関係の追加、複数発言の統合による物語化をしない。根拠となる直接発言がない項目は空文字:",
-  ...SHEET_FIELDS.map(([key, label, desc]) => `   - ${key}: ${label}。${desc}`),
-  "2. netadana: 投稿の種になりそうな具体的な体験（最大3件）。title=15字以内の見出し / quote=ユーザーの発言からの原文引用（一切書き換えない）。",
-  "3. voice: ユーザーの文体の観察。firstPerson=一人称 / tone=口調の特徴（1行）。",
-  "4. kotoba: ユーザーの発言の中で、そのまま投稿に使えるほど熱のある一文（最大2つ・原文のまま）。",
-  "",
-  "# 禁止事項",
-  "- ユーザーが言っていないことを補完・脚色しない。引用は一字も変えない。",
-  "- 立派に見せようとしない。生の言葉のほうが価値がある。",
-  "- ユーザーが以前の発言を否定・訂正した場合、sheetの該当項目は**訂正後の内容**で返す（空文字で逃げない）。",
-  "- **対話の運営に関するメタ発言は、kotoba・netadana・sheetに絶対に入れない**（例:「パスします」「質問がずれている」「精度が悪い」等、AIやこの対話自体への言及）。選ぶのは、ユーザーが語った**内容そのもの**（体験・違和感・考え）だけ。",
-].join("\n");
-
-const SHEET_SCHEMA_PROPS = {};
-for (const [key] of SHEET_FIELDS) SHEET_SCHEMA_PROPS[key] = { type: "string" };
-const EXTRACT_SCHEMA = {
+const ASK_SCHEMA = {
   type: "object",
-  properties: {
-    sheet: { type: "object", properties: SHEET_SCHEMA_PROPS,
-      required: SHEET_FIELDS.map(f => f[0]), additionalProperties: false },
-    netadana: { type: "array", items: { type: "object",
-      properties: { title: {type:"string"}, quote: {type:"string"} },
-      required: ["title","quote"], additionalProperties: false } },
-    voice: { type: "object", properties: { firstPerson: {type:"string"}, tone: {type:"string"} },
-      required: ["firstPerson","tone"], additionalProperties: false },
-    kotoba: { type: "array", items: { type: "string" } },
-  },
-  required: ["sheet","netadana","voice","kotoba"], additionalProperties: false,
+  properties: { ack: { type: "string" }, question: { type: "string" } },
+  required: ["ack", "question"], additionalProperties: false,
 };
 
+// 判定器（Sonnet）: ユーザーの実回答だけを材料に、各基準を採点し、抽出し、次の角度を決める。
+// AIの質問文は一切渡さない（汚染連鎖の遮断）。
+function judgeSystem(s) {
+  const lines = [
+    "あなたは発信のコンセプト設計書の判定器です。以下は、ある人がツールに入力した回答だけを並べたものです（AIの質問文は含みません）。",
+    "この人の回答だけを根拠に、各材料基準を採点し、投稿の種を抽出してください。",
+    "",
+    "# 採点する基準",
+    ...s.criteria.map(c => `- ${c.key}（${c.label}）: ${c.desc}`),
+    "",
+    "# 各基準の判定（criteria）",
+    "- mark: green=具体的な体験で裏付けられ、その材料で設計が立つ / yellow=触れているが薄い・具体が足りない / red=この人がまだ何も語っていない、または設計が立たない。",
+    "- value: この人が実際に使った名詞・動詞・感情語をできるだけそのまま使った1〜2行の要約。抽象語への言い換え・因果の追加・複数発言の物語化をしない。根拠となる直接の発言がなければ空文字。",
+    "- reason: markがred/yellowのとき、なぜ立たない/薄いのかを1行で（例:「きっかけの具体的な場面がまだ語られていない」）。greenのときは空文字。",
+    "",
+    "# 次の一手（nextTarget / draftReady）",
+    "- nextTarget: 次に掘るべき基準のkeyを1つ。redまたはyellowのうち、この人がすでに周辺を語っていて掘れば伸びそうなものを優先。全部greenならそのままgreenのkey。",
+    "- draftReady: コアの材料が最低限そろい（green/yellowが過半）、仮の設計書を見せてよい段階ならtrue。",
+    "",
+    "# テーマ由来の追加基準（themeCriteria）",
+    s.theme ? `- この人の北極星は「${s.theme}」。この北極星を発信として立てるために、コア6基準に加えて確かめるべき固有の基準が1〜2個あれば提案（key=theme_で始めるsnake_case / label / desc）。なければ空配列。既に提案済みなら重複させない。`
+            : "- 北極星が未入力なので空配列。",
+    "",
+    "# 抽出（netadana / kotoba / voice / yaranai）",
+    "- netadana: 投稿の種になりそうな具体的な体験（最大3件）。title=15字以内の見出し / quote=この人の発言からの原文引用（一切書き換えない）。",
+    "- kotoba: この人の発言の中で、そのまま投稿に使えるほど熱のある一文（最大2つ・原文のまま）。",
+    "- voice: 文体の観察。firstPerson=一人称 / tone=口調の特徴（1行）。",
+    "- yaranai: この人が「やらない」と語ったことがあれば1〜2行。なければ空文字。",
+    "",
+    "# 禁止事項（違反したら失格）",
+    "- この人が言っていないことを補完・脚色しない。引用は一字も変えない。立派に見せない。生の言葉のほうが価値がある。",
+    "- 対話の運営に関するメタ発言（「パスします」「質問がずれている」等）は、どの項目にも入れない。選ぶのは、この人が語った内容そのもの（体験・違和感・考え）だけ。",
+  ];
+  const already = s.criteria.filter(c => c.source === "theme").map(c => c.key);
+  if (already.length) lines.push("", "# 既に追加済みのテーマ基準（重複提案しない）", ...already.map(k => "- " + k));
+  return lines.join("\n");
+}
+
+const MARK_ENUM = ["red", "yellow", "green"];
+const JUDGE_SCHEMA = {
+  type: "object",
+  properties: {
+    criteria: { type: "array", items: { type: "object",
+      properties: {
+        key: { type: "string" },
+        mark: { type: "string", enum: MARK_ENUM },
+        value: { type: "string" },
+        reason: { type: "string" },
+      }, required: ["key", "mark", "value", "reason"], additionalProperties: false } },
+    themeCriteria: { type: "array", items: { type: "object",
+      properties: { key: { type: "string" }, label: { type: "string" }, desc: { type: "string" } },
+      required: ["key", "label", "desc"], additionalProperties: false } },
+    netadana: { type: "array", items: { type: "object",
+      properties: { title: { type: "string" }, quote: { type: "string" } },
+      required: ["title", "quote"], additionalProperties: false } },
+    kotoba: { type: "array", items: { type: "string" } },
+    voice: { type: "object", properties: { firstPerson: { type: "string" }, tone: { type: "string" } },
+      required: ["firstPerson", "tone"], additionalProperties: false },
+    yaranai: { type: "string" },
+    nextTarget: { type: "string" },
+    draftReady: { type: "boolean" },
+  },
+  required: ["criteria", "themeCriteria", "netadana", "kotoba", "voice", "yaranai", "nextTarget", "draftReady"],
+  additionalProperties: false,
+};
+
+// 書く（Opus）: 設計書（criteria値＋声＋やらないこと）を土台にX投稿を整える。
 function writeSystem(s) {
   const lines = [
     "あなたは編集者です。ユーザーの「生の思考」を、X（Twitter）に投稿できる形に整えます。",
@@ -449,7 +538,7 @@ function writeSystem(s) {
     "案は3つ。必ず次の構成で:",
     "- 案1【あなたの言葉そのまま】: 本人の言葉を最小限だけ整えたもの。語彙を変えない。削るのは可、足すのは不可。",
     "- 案2【結論から】: 同じ内容を、1行目に結論を言い切る形に組み替えたもの。",
-    "- 案3【弱さから】: 失敗・葛藤・迷いを隠さず先頭に置いた形。**入力に弱さの材料が無い場合は捏造せず**、入力の事実の中で最も生々しい部分から始める。",
+    "- 案3【弱さから】: 失敗・葛藤・迷いを隠さず先頭に置いた形。入力に弱さの材料が無い場合は捏造せず、入力の事実の中で最も生々しい部分から始める。",
     "",
     "# 原則（違反したら失格）",
     "- 捏造しない。本人が言っていない体験・数字・実績を一切足さない。",
@@ -462,137 +551,267 @@ function writeSystem(s) {
   ];
   const sh = sheetLines(s);
   lines.push(...(sh.length ? sh : ["（まだ空です。入力文だけを頼りに、上の原則を守って整えてください）"]));
-  if (s.sheet.yaranai) {
-    lines.push("", "# この人が「やらない」と決めたこと（反する案は出さない）", s.sheet.yaranai);
-  }
+  if (s.aux.yaranai) lines.push("", "# この人が「やらない」と決めたこと（反する案は出さない）", s.aux.yaranai);
   lines.push("", "# この人の文体", s.voice.tone || "（未設定。入力文の文体に合わせる）");
   return lines.join("\n");
 }
-
 const WRITE_SCHEMA = {
   type: "object",
   properties: { drafts: { type: "array", items: { type: "object",
-    properties: { label: {type:"string"}, text: {type:"string"} },
-    required: ["label","text"], additionalProperties: false } } },
+    properties: { label: { type: "string" }, text: { type: "string" } },
+    required: ["label", "text"], additionalProperties: false } } },
   required: ["drafts"], additionalProperties: false,
 };
 
+// ---------- テスト走行: ペルソナ被験者（検証用） ----------
+// 架空の人物にツールを通させ、質問と設計書の品質を確かめる。
+// 出力は {answer} のスキーマ強制（被験者側の台本化も構造で防ぐ）。
+// この走行で作られたデータには simulated フラグが付き、画面と書き出しに🎭が出る。
+function personaSystem(spec, journey) {
+  const lines = [
+    "あなたはロールプレイの被験者です。以下の人物になりきり、聞き手の質問に一人称で答えてください。",
+    "",
+    "# 人物設定",
+    spec,
+  ];
+  if (journey) lines.push("", "# 半生ジャーニー（この人物の内面の変化と転機。回答はこれと一貫させる）", journey);
+  lines.push(
+    "",
+    "# 答え方",
+    "- この人物として、実体験を思い出しながら話すように答える。1回答は1〜6文。",
+    "- 具体的な場面（いつ・どこで・誰と・何があったか・誰が何と言ったか）を持ち出す。毎回きれいにまとめない。ためらい・言い直しがあってよい。",
+    "- 聞かれたことのうち、この人物の心に引っかかる部分から話す。質問の全項目に律儀に答えようとしない。",
+    "- 設定に無いことを聞かれたら、人物として自然な事実をその場で決め、以降は一貫させる。",
+  );
+  return lines.join("\n");
+}
+const PERSONA_SCHEMA = {
+  type: "object",
+  properties: { answer: { type: "string" } },
+  required: ["answer"], additionalProperties: false,
+};
+// ジャーニー生成（①人物を深める）: 設定→半生の作り込み。自由テキストで良い（独白生成なので台本化リスクなし）
+const PERSONA_DEEPEN_SYSTEM = [
+  "あなたはペルソナ設計者です。与えられた人物設定から、その人物の半生ジャーニーを作り込んでください。",
+  "- 内面の変化と行動の因果が繋がるように。表層プロフィールではなく、価値観が変わった瞬間を中心に。",
+  "- 転機となった具体的なエピソード（年齢・場所・登場人物・交わされた言葉）を5〜8個、時系列の箇条書きで。",
+  "- 各エピソードは2〜3行で簡潔に。飾らない、生活の匂いがする出来事にする。",
+].join("\n");
+// 被験者から見た対話履歴: 聞き手の質問=user / 自分の回答=assistant
+function personaMessages() {
+  const msgs = [];
+  for (const m of state.dialogue) {
+    if (m.role === "sys") continue;
+    const role = m.role === "q" ? "user" : "assistant";
+    const content = m.role === "q" ? m.text : (m.passed ? "（パス）" : m.text);
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === role) last.content += "\n" + content;
+    else msgs.push({ role, content });
+  }
+  return msgs;
+}
+
+// 設計書の行（criteria値 → 書く部屋のsystem prompt / コピー用）
+function sheetLines(s) {
+  const out = [];
+  for (const c of s.criteria) {
+    const m = s.marks[c.key];
+    if (m && m.value) out.push(`${c.label}: ${m.value}`);
+  }
+  return out;
+}
+
 // ---------- 状態 ----------
+function coreDefs() { return CORE_CRITERIA.map(c => ({ ...c, source: "core" })); }
 function defaults() {
   return {
-    version: 3,
-    apiKey: "", depth: "", started: false,
-    dialogue: [],          // {role:"q"|"a", text, passed, checkpoint?}
-    qcount: 0,             // 回答済みの数
-    lastExtractedAt: 0,    // 抽出済みの回答数
-    sheet: { tamashiiOmote:"", tamashiiUra:"", keifu:"", tsumazuki:"", who:"", what:"", why:"", yaranai:"" },
-    sheetLocked: {},       // フィールド単位: 本人が編集した欄はAIが上書きしない（例 {who:true}）
+    version: 4,
+    apiKey: "", openaiKey: "", theme: "", depth: "normal", started: false,
+    models: { ask: "", judge: "" },  // 空文字=既定モデル。自由入力でカスタム可
+    dialogue: [],          // {role:"q"|"a"|"sys", text, ack?, passed?, target?}
+    qcount: 0,             // 回答済みの数（パス除く）
+    criteria: coreDefs(),  // {key,label,desc,source}
+    marks: {},             // key -> {mark,value,reason}
+    locked: {},            // key/voice/yaranai -> true（本人が編集した欄はAIが上書きしない）
     voice: { firstPerson: "", tone: "" },
-    netadana: [],          // {id, title, quote}
+    aux: { yaranai: "" },
+    netadana: [],          // {id,title,quote}
     kotoba: [],
     xposts: [],
-    usedQ: { normal: [], honki: [] }, // 出題済みのプール質問index（同じ入口質問を繰り返さない）
+    draftShown: false,
+    judgedCount: 0,        // 判定器が採点済みのユーザー回答数（未判定回答の検出に使う）
+    usedOpeners: [],       // 出題済みの代替1問目index
+    simulated: false,      // 🎭 ペルソナ被験者による走行（本人の言葉ではない印）
+    persona: { spec: "", journey: "", model: "", turns: 7 },  // テスト走行の設定
   };
 }
-// ロックの移行: v3のフィールド単位map / 旧v3の一括boolean / v2のjikuLocked をすべて読む。
-// v2で本人が守っていたのは旧「軸」3項目だけなので、新設欄（魂・系譜・躓き）までロックしない
-function normalizeLock(p) {
-  if (p.sheetLocked && typeof p.sheetLocked === "object") return { ...p.sheetLocked };
-  if (p.sheetLocked === true) {
-    const all = { voice: true };
-    for (const [k] of SHEET_FIELDS) all[k] = true;
-    return all;
-  }
-  if (p.jikuLocked) return { who: true, what: true, why: true, voice: true };
-  return {};
-}
+const okObj = x => x && typeof x === "object" && !Array.isArray(x);
+
 // 旧バージョン・欠損・部分importでも落ちないよう、必ずデフォルトにmergeする。
-// 将来バージョンのデータもbest-effortで読む方針（拒否してデータを失うより安全側）
+// v3→v4はモデル（固定sheet→criteria）が変わるため、v4未満のdialogueは引き継がず、
+// apiKey/xposts と（あれば）旧sheet値をbest-effortでcriteria値に移すに留める。
 function normalize(p) {
   const d = defaults();
   if (!p || typeof p !== "object") return d;
+  const isV4 = p.version === 4;
   const out = {
-    ...d, ...p,
-    version: 3,
-    sheet: { ...d.sheet, ...(typeof p.sheet === "object" && p.sheet ? p.sheet : {}) },
-    voice: { ...d.voice, ...(typeof p.voice === "object" && p.voice ? p.voice : {}) },
-    dialogue: Array.isArray(p.dialogue) ? p.dialogue : [],
-    netadana: Array.isArray(p.netadana) ? p.netadana : [],
-    kotoba: Array.isArray(p.kotoba) ? p.kotoba : [],
-    xposts: Array.isArray(p.xposts) ? p.xposts : [],
-    qcount: Number.isFinite(p.qcount) ? p.qcount : 0,
-    lastExtractedAt: Number.isFinite(p.lastExtractedAt) ? p.lastExtractedAt : 0,
-    sheetLocked: normalizeLock(p),
-    usedQ: {
-      normal: (p.usedQ && Array.isArray(p.usedQ.normal)) ? p.usedQ.normal : [],
-      honki: (p.usedQ && Array.isArray(p.usedQ.honki)) ? p.usedQ.honki : [],
+    ...d,
+    apiKey: typeof p.apiKey === "string" ? p.apiKey : "",
+    openaiKey: typeof p.openaiKey === "string" ? p.openaiKey : "",
+    models: {
+      ask: (okObj(p.models) && typeof p.models.ask === "string") ? p.models.ask : "",
+      judge: (okObj(p.models) && typeof p.models.judge === "string") ? p.models.judge : "",
     },
+    theme: typeof p.theme === "string" ? p.theme : "",
+    depth: p.depth === "honki" ? "honki" : "normal",
+    xposts: Array.isArray(p.xposts) ? p.xposts : [],
   };
-  // 履歴が真実。qcount/lastExtractedAtは旧形式・手編集importで壊れ得るので再計算する
-  out.qcount = out.dialogue.filter(m => m.role === "a" && !m.passed).length;
-  out.lastExtractedAt = Math.min(Math.max(0, out.lastExtractedAt), out.qcount);
-  // 履歴に出題済みのプール質問があればusedQに復元する（usedQ未導入データからの移行・import修復）
-  for (const depth of ["normal", "honki"]) {
-    FIRST_QUESTIONS[depth].forEach((q, i) => {
-      if (out.usedQ[depth].includes(i)) return;
-      if (out.dialogue.some(m => m.role === "q" && m.text === q)) out.usedQ[depth].push(i);
-    });
-  }
-  // v2 → v3 移行: 旧「軸」(jiku.who/what/why) を設計書の④に引き継ぐ
-  if (p.jiku && typeof p.jiku === "object") {
-    for (const k of ["who", "what", "why"]) {
-      if (!out.sheet[k] && typeof p.jiku[k] === "string") out.sheet[k] = p.jiku[k];
+  if (isV4) {
+    out.started = !!p.started;
+    // 不正要素（null/非オブジェクト/role欠落）を除いて落ちないようにする（部分import耐性）
+    out.dialogue = Array.isArray(p.dialogue) ? p.dialogue.filter(m => okObj(m) && typeof m.role === "string") : [];
+    out.criteria = Array.isArray(p.criteria) && p.criteria.length ? mergeCriteria(p.criteria) : coreDefs();
+    out.marks = okObj(p.marks) ? p.marks : {};
+    out.locked = okObj(p.locked) ? p.locked : {};
+    out.voice = { ...d.voice, ...(okObj(p.voice) ? p.voice : {}) };
+    out.aux = { ...d.aux, ...(okObj(p.aux) ? p.aux : {}) };
+    out.netadana = Array.isArray(p.netadana) ? p.netadana.filter(n => okObj(n) && typeof n.quote === "string") : [];
+    out.kotoba = Array.isArray(p.kotoba) ? p.kotoba.filter(k => typeof k === "string") : [];
+    out.draftShown = !!p.draftShown;
+    out.usedOpeners = Array.isArray(p.usedOpeners) ? p.usedOpeners.filter(i => Number.isFinite(i)) : [];
+    out.judgedCount = Number.isFinite(p.judgedCount) ? p.judgedCount : 0;
+    out.simulated = !!p.simulated;
+    out.persona = {
+      spec: (okObj(p.persona) && typeof p.persona.spec === "string") ? p.persona.spec : "",
+      journey: (okObj(p.persona) && typeof p.persona.journey === "string") ? p.persona.journey : "",
+      model: (okObj(p.persona) && typeof p.persona.model === "string") ? p.persona.model : "",
+      turns: (okObj(p.persona) && Number.isFinite(p.persona.turns)) ? p.persona.turns : 7,
+    };
+    out.qcount = out.dialogue.filter(m => m.role === "a" && !m.passed).length;
+  } else {
+    // v3以前: 対話はリセット（新モデルへ安全移行）。旧sheet値と旧ロックをコア基準へ移す。
+    const oldSheet = okObj(p.sheet) ? p.sheet : {};
+    const OLD2NEW = { tamashiiOmote: "tamashiiOmote", tamashiiUra: "tamashiiUra", keifu: "keifu",
+      tsumazuki: "tsumazuki", who: "reader", what: "reader", why: "tachiichi", voice: "voice", yaranai: "yaranai" };
+    for (const [oldK, newK] of Object.entries(OLD2NEW)) {
+      if (newK === "voice" || newK === "yaranai") continue; // 値は下で個別に移す
+      const v = oldSheet[oldK];
+      if (v && typeof v === "string") {
+        out.marks[newK] = out.marks[newK] || { mark: "yellow", value: "", reason: "" };
+        out.marks[newK].value = out.marks[newK].value ? out.marks[newK].value + " / " + v : v;
+      }
     }
+    if (oldSheet.yaranai) out.aux.yaranai = oldSheet.yaranai;
+    if (okObj(p.voice)) out.voice = { ...d.voice, ...p.voice };
+    // 旧ロック（v3 sheetLocked=map/boolean, v2 jikuLocked）を v4 locked に引き継ぐ。
+    // これをしないと、本人が守っていた欄を移行後のAIが上書きしてしまう。
+    let oldLocks = {};
+    if (okObj(p.sheetLocked)) oldLocks = p.sheetLocked;
+    else if (p.sheetLocked === true) { for (const k of Object.keys(OLD2NEW)) oldLocks[k] = true; }
+    else if (p.jikuLocked) oldLocks = { who: true, what: true, why: true, voice: true };
+    for (const [oldK, newK] of Object.entries(OLD2NEW)) if (oldLocks[oldK]) out.locked[newK] = true;
   }
-  delete out.jiku;
-  delete out.jikuLocked;
   return out;
 }
+// criteria定義のmerge: コア6は常にコード定義を正とし（label/descの改訂を反映）、
+// 保存済みのテーマ基準だけ引き継ぐ。順序はコア→テーマ。
+function mergeCriteria(saved) {
+  const out = coreDefs();
+  const seen = new Set(CORE_KEYS);
+  for (const c of saved) {
+    if (!c || typeof c.key !== "string" || seen.has(c.key)) continue;
+    seen.add(c.key);
+    out.push({ key: c.key, label: c.label || c.key, desc: c.desc || "", source: "theme" });
+  }
+  return out;
+}
+
 let state = load();
 function load() {
   try { const raw = localStorage.getItem(STORE_KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) {}
   return defaults();
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+// localStorage が満杯・拒否状態でも例外を投げない（UIロック・状態不整合を防ぐ。
+// 保存に失敗してもアプリはメモリ上で動き続ける＝データは失うが操作は止めない）。
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
 
 // ---------- API ----------
-async function callClaude(system, messages, opts) {
-  const body = { model: MODEL, max_tokens: opts.maxTokens, system, messages };
-  if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
-  if (opts.stop) body.stop_sequences = opts.stop;
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": state.apiKey,
-      "anthropic-version": "2023-06-01",
-      // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
-      // 代わりに、キーの管理はあなた自身の責任になります。
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    const msg = b?.error?.message || res.statusText;
-    if (res.status === 401) throw new Error("APIキーが無効です。下の「APIキー」から設定し直してください。");
-    if (res.status === 429) throw new Error("リクエストが多すぎます。少し待ってからもう一度どうぞ。");
-    if (res.status === 400 && /credit/i.test(msg)) throw new Error("Anthropicのクレジット残高が不足しています。Consoleでチャージしてください。");
-    throw new Error(`APIエラー (${res.status}): ${msg}`);
+// モデルIDでプロバイダを振り分ける（claude系→Anthropic / gpt系→OpenAI）。
+// どちらもJSONスキーマ強制（v4の絶対条件①はプロバイダを跨いでも維持する）。
+// 途中切断（Anthropic: stop_reason=max_tokens / OpenAI: finish_reason=length）を
+// 検出したら上限を倍にして1回だけ自動リトライし、それでもダメなら日本語の案内を出す。
+async function callLLM(system, messages, opts) {
+  const model = opts.model;
+  const provider = providerName(model);
+  const key = keyFor(model);
+  if (!key) throw new Error(`${provider} のAPIキーが未設定です。下の「APIキー」から設定してください。`);
+  let maxTokens = opts.maxTokens;
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    if (isOpenAIModel(model)) {
+      const body = {
+        model,
+        max_completion_tokens: maxTokens,
+        messages: [{ role: "system", content: system }, ...messages],
+      };
+      if (opts.schema) body.response_format = { type: "json_schema",
+        json_schema: { name: "output", strict: true, schema: opts.schema } };
+      res = await fetch(OPENAI_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+        body: JSON.stringify(body),
+      });
+    } else {
+      const body = { model, max_tokens: maxTokens, system, messages };
+      if (opts.schema) body.output_config = { format: { type: "json_schema", schema: opts.schema } };
+      res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          // ブラウザ直通用の公式ヘッダ。キーが第三者サーバーを経由しない
+          // 代わりに、キーの管理はあなた自身の責任になります。
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(body),
+      });
+    }
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      const msg = (b && b.error && b.error.message) || res.statusText;
+      if (res.status === 401) throw new Error(`${provider} のAPIキーが無効です。下の「APIキー」から設定し直してください。`);
+      if (res.status === 404 && isOpenAIModel(model)) throw new Error(`モデル「${model}」が見つかりません。「APIキー」のモデル欄を確認してください。`);
+      if (res.status === 429) throw new Error(`${provider} へのリクエストが多すぎます。少し待ってからもう一度どうぞ。`);
+      if (res.status === 400 && /credit|quota|billing/i.test(msg)) throw new Error(`${provider} のクレジット残高が不足しています。チャージしてください。`);
+      if (res.status === 400 && /model/i.test(msg)) throw new Error(`モデル「${model}」でエラー: ${msg}（「APIキー」のモデル欄を確認してください）`);
+      throw new Error(`${provider} APIエラー (${res.status}): ${msg}`);
+    }
+    const data = await res.json();
+    let text, truncated;
+    if (isOpenAIModel(model)) {
+      const choice = (data.choices || [])[0] || {};
+      text = (choice.message && choice.message.content) || "";
+      truncated = choice.finish_reason === "length";
+    } else {
+      text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+      truncated = data.stop_reason === "max_tokens";
+    }
+    if (!opts.schema) return text.trim();
+    if (!truncated) {
+      try { return JSON.parse(text); } catch (e) { /* 稀な不正JSON → 下のリトライへ */ }
+    }
+    if (attempt === 0) { maxTokens = maxTokens * 2; continue; }
+    throw new Error("AIの出力が途中で切れました。通信が混み合っている可能性があります。もう一度お試しください。");
   }
-  const data = await res.json();
-  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  return opts.schema ? JSON.parse(text) : text.trim();
 }
 
-// 対話履歴 → API messages 形式。
-// ①先頭をuserにする（履歴はAIの固定質問=assistantから始まるため、そのまま送ると
-//   assistant先頭になり、モデルが「どちらの番か」を見失って対話の続きを演じる事故が起きた）
-// ②同役割の連続は結合する（深度変更メッセージ等でassistantが連続し得る）
-function dialogueToMessages() {
+// 対話履歴 → 聞き手API messages 形式（聞き手は自分の過去質問を文脈として見てよい）。
+// 先頭をuserにする（履歴はAIの固定質問=assistantから始まるため）。同役割の連続は結合。
+function askerMessages() {
   const msgs = [{ role: "user", content: "（対話を始めてください。あなたから質問をどうぞ）" }];
   for (const m of state.dialogue) {
-    if (m.role === "sys") continue; // 表示専用（深度変更通知など）はAPIに送らない
+    if (m.role === "sys") continue;
     const role = m.role === "q" ? "assistant" : "user";
     const content = m.role === "q" ? m.text
       : (m.passed ? "（この質問はパスします。角度を変えてください）" : m.text);
@@ -603,13 +822,10 @@ function dialogueToMessages() {
   return msgs;
 }
 
-// モデルが対話の続き（user/assistantラベル付きの想定問答）を演じ始めた場合の防波堤。
-// 最初のラベル出現位置で切り捨て、質問1つだけを残す
-function truncateRolePlay(t) {
-  let out = t.replace(/^(?:assistant|ai)[\s:：]+/i, "");
-  const m = out.search(/(?:^|[\s　])(?:user|assistant|human|ユーザー)[\s:：]/i);
-  if (m > 0) out = out.slice(0, m);
-  return out.trim();
+// 判定器へ渡す材料＝ユーザーの実回答だけ（AIの質問文は絶対に混ぜない＝汚染連鎖の遮断）。
+function userAnswersTranscript() {
+  const ans = state.dialogue.filter(m => m.role === "a" && !m.passed && m.text);
+  return ans.map((m, i) => `回答${i + 1}: ${m.text}`).join("\n\n");
 }
 
 // ---------- UI ヘルパ ----------
@@ -619,6 +835,13 @@ function el(tag, cls, text) {
   if (cls) e.className = cls;
   if (text !== undefined) e.textContent = text;
   return e;
+}
+const MARK_EMOJI = { red: "🔴", yellow: "🟡", green: "🟢" };
+function markOf(key) {
+  const m = state.marks[key];
+  // 本人が確定した欄: 中身があれば🟢、意図的に空にした欄は🔴（空保存で全🟢になる事故を防ぐ）
+  if (state.locked[key]) return (m && m.value) ? "green" : "red";
+  return (m && MARK_ENUM.includes(m.mark)) ? m.mark : "red";
 }
 
 // ---------- タブ ----------
@@ -637,154 +860,149 @@ tabs.jiku.onclick = () => showRoom("jiku");
 tabs.write.onclick = () => showRoom("write");
 
 // ---------- 部屋1: 引き出す ----------
-// チェックポイント（=直近の回答に設計書の整理が付いた状態）では、
-// 次のアクションを「もっと掘る/設計書を見る」の2択に絞り、入力欄を止める
-function atCheckpoint() {
-  const last = state.dialogue[state.dialogue.length - 1];
-  return !!(last && last.role === "a" && last.checkpoint);
-}
-
 let isSubmitting = false;
+let personaRunning = false; // 🎭 テスト走行の自動ループ中
+// UI変異操作の統一ガード（ペルソナ自動走行中の手動操作混入を防ぐ）
+function uiBusy() { return isSubmitting || personaRunning; }
 function updateControls() {
-  const lock = isSubmitting || atCheckpoint();
+  const lock = isSubmitting || personaRunning;
   $("answer").disabled = lock;
   $("send-btn").disabled = lock;
   $("pass-btn").disabled = lock;
-  $("finish-btn").disabled = isSubmitting;
-  // チェックポイント中の深度変更は禁止（末尾がsysになり「回答先の質問がない」状態になるため）
+  $("finish-btn").disabled = lock;
   $("depth-toggle").disabled = lock;
-  $("restart-btn").disabled = isSubmitting;
-  $("answer").placeholder = atCheckpoint()
-    ? "上の「もっと掘る」か「設計書を見る」を選んでください"
-    : "思い出したまま、話すように書いてください。一言でも、音声入力の書き起こしをそのまま貼っても大丈夫です。";
+  $("restart-btn").disabled = lock;
 }
 
 function renderChat() {
   const chat = $("chat");
   chat.innerHTML = "";
-  state.dialogue.forEach((m, i) => {
+  state.dialogue.forEach(m => {
     const wrap = el("div", "msg " + (m.role === "q" ? "q" : m.role === "sys" ? "sys" : "a"));
+    if (m.role === "q" && m.ack) wrap.appendChild(el("div", "ack", m.ack));
     const body = el("div", "body" + (m.passed ? " passed" : ""), m.passed ? "（パス）" : m.text);
     wrap.appendChild(body);
     chat.appendChild(wrap);
-    if (m.checkpoint) {
-      // ボタンは「最後のメッセージのチェックポイント」にだけ付ける
-      // （過去のチェックポイントから質問を重複追加できてしまう事故の防止）
-      const isActive = i === state.dialogue.length - 1;
-      chat.appendChild(renderCheckpoint(m.checkpoint, isActive));
-    }
   });
   $("depth-indicator").textContent = state.depth === "honki" ? "深度: 本気（丸裸）" : "深度: ノーマル";
+  renderBoard();
   updateControls();
   window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 }
 
-function renderCheckpoint(cp, isActive) {
-  const box = el("div", "checkpoint sans");
-  box.appendChild(el("h3", null, "ここまでで見えてきたもの"));
-  if (cp.kotoba && cp.kotoba.length) {
-    box.appendChild(el("p", "hint", "あなたの言葉（原文のまま・このまま投稿に使えます）:"));
-    for (const k of cp.kotoba) {
-      const q = el("div", "kotoba");
-      q.textContent = "「" + k + "」";
-      box.appendChild(q);
-    }
+// 進捗ボード: 材料の宣言＋🔴🟡🟢＋（早期ドラフト以降）本人選択の深掘り・確定
+function renderBoard() {
+  const board = $("board");
+  if (!state.started) { board.hidden = true; return; }
+  board.hidden = false;
+  board.innerHTML = "";
+  board.appendChild(el("h3", null, state.draftShown ? "設計書ドラフト（仮）" : "集まってきた材料"));
+
+  let g = 0, y = 0, r = 0;
+  for (const k of CORE_KEYS) { const mk = markOf(k); if (mk === "green") g++; else if (mk === "yellow") y++; else r++; }
+  const tally = el("p", "tally", (state.simulated ? "🎭シミュレーション走行　／　" : "") + `コア6基準 → 🟢${g} 🟡${y} 🔴${r}` +
+    (state.draftShown ? "　／　項目をタップすると、そこを狙って深掘りします" : "　／　対話が進むと埋まっていきます"));
+  board.appendChild(tally);
+
+  // 基準チップ（タップ＝狙い撃ち深掘り）
+  const chips = el("div", "crit-chips");
+  for (const c of state.criteria) {
+    const chip = el("button", "crit-chip");
+    chip.appendChild(el("span", "mk", MARK_EMOJI[markOf(c.key)]));
+    chip.appendChild(el("span", null, c.label));
+    chip.title = c.desc;
+    chip.disabled = isSubmitting || personaRunning;
+    chip.onclick = () => digCriterion(c.key);
+    chips.appendChild(chip);
   }
-  // 設計書の断片（旧チェックポイントの cp.jiku 形式も読めるようにする）
-  const cpSheet = cp.sheet || (cp.jiku ? { who: cp.jiku.who, what: cp.jiku.what, why: cp.jiku.why } : {});
-  let any = false;
-  for (const [key, label] of SHEET_FIELDS) {
-    const v = cpSheet[key];
-    if (!v) continue;
-    any = true;
-    const d = el("div", "jiku-line");
-    d.appendChild(el("b", null, label + ": "));
-    d.appendChild(document.createTextNode(v));
-    box.appendChild(d);
-  }
-  if (any) box.appendChild(el("p", "hint", "※仮説です。「設計書」タブでいつでも直せます。"));
-  if (isActive) {
-    box.appendChild(el("p", "hint", "ここまでの分だけでも設計書になっています。続けるほど濃くなります。"));
-    const row = el("div", "row", "");
-    row.style.marginTop = "10px";
-    const more = el("button", "ghost", "もっと掘る");
-    more.onclick = async () => {
-      if (isSubmitting) return;
-      isSubmitting = true; updateControls();
-      more.disabled = true;
-      const st = $("dig-status");
-      st.innerHTML = '<span class="spin">◐</span> 次の質問を考えています…';
-      try {
-        // askNext()が質問を追加すると、このチェックポイントは「最後のメッセージ」で
-        // なくなるため、再描画でボタンは自動的に消える（重複押下の構造的防止）
-        await askNext();
-      } catch (e) {
-        $("dig-error").textContent = e.message;
-        more.disabled = false; // 失敗時は再試行できるよう戻す
+  board.appendChild(chips);
+
+  // 早期ドラフト以降: 各基準の中身と、確定/設計書ボタン
+  if (state.draftShown) {
+    const db = el("div", "draft-body");
+    for (const c of state.criteria) {
+      const m = state.marks[c.key] || {};
+      const mk = markOf(c.key);
+      const line = el("div", "draft-line");
+      line.appendChild(el("span", "lab", MARK_EMOJI[mk] + " " + c.label + "："));
+      line.appendChild(el("span", "val", m.value || "（まだ材料がありません）"));
+      if (mk !== "green" && m.reason) {
+        const rz = el("span", "rz" + (mk === "yellow" ? " y" : ""), "→ " + m.reason);
+        line.appendChild(rz);
       }
-      st.textContent = "";
-      isSubmitting = false; updateControls();
-    };
-    const sheetBtn = el("button", "primary", "設計書を見る");
-    sheetBtn.onclick = () => showRoom("jiku");
-    row.append(more, sheetBtn);
-    box.appendChild(row);
+      db.appendChild(line);
+    }
+    board.appendChild(db);
+
+    const row = el("div", "row");
+    row.style.marginTop = "14px";
+    const jbtn = el("button", "ghost", "設計書を見る・直す");
+    jbtn.onclick = () => showRoom("jiku");
+    const okbtn = el("button", "primary", "この設計書で確定");
+    okbtn.disabled = isSubmitting || personaRunning;
+    okbtn.onclick = finishDialogue;
+    row.append(jbtn, okbtn);
+    board.appendChild(row);
+    if (r > 0) board.appendChild(el("p", "hint", `※🔴が${r}件残っています（まだ設計が立たない材料）。確定はできますが、掘るほど設計は立ちます。決めるのはあなたです。`));
   }
-  return box;
 }
 
-function startDialogue(depth) {
-  state.depth = depth;
+function startDialogue() {
+  if (uiBusy()) return; // X取得/import待機中・ペルソナ走行中の手動開始を禁止（runPersonaTestはループ開始前に呼ぶ）
+  state.theme = $("theme-input").value.trim();
   state.started = true;
-  state.dialogue.push({ role: "q", text: pickFirstQuestion(depth) || FIRST_QUESTIONS[depth][0] });
+  state.dialogue.push({ role: "q", ack: "", text: openingQuestion(state.theme) });
   save();
-  $("depth-select").hidden = true;
+  $("theme-select").hidden = true;
   $("answer-area").hidden = false;
   renderChat();
 }
-document.querySelectorAll(".depth-card").forEach(btn => {
-  btn.onclick = () => startDialogue(btn.dataset.depth);
-});
+$("theme-start").onclick = startDialogue;
 
 $("depth-toggle").onclick = () => {
+  if (uiBusy()) return;
   state.depth = state.depth === "honki" ? "normal" : "honki";
-  // 表示専用のsysメッセージ。role:"q"にすると未回答の質問と結合され、
-  // どちらへの回答か曖昧になるため、対話履歴（API送信）には含めない
   state.dialogue.push({ role: "sys", text: state.depth === "honki"
     ? "（深度を「本気」に変えました。ここからは踏み込みます。）"
     : "（深度を「ノーマル」に戻しました。）" });
   save(); renderChat();
 };
 
-async function submitAnswer(passed) {
-  if (isSubmitting || atCheckpoint()) return;
+async function submitAnswer(passed, fromPersona) {
+  if (isSubmitting || (personaRunning && !fromPersona)) return;
   const text = $("answer").value.trim();
   if (!passed && !text) return;
   $("dig-error").textContent = "";
 
-  // まだ一度も答えていない段階のパスは、APIを使わずプールから別の入口質問を即出す
-  // （入口の質問に心当たりがない人が、キー設定や待ち時間なしで入り直せる）
+  // まだ一度も答えていない段階のパスは、APIを使わず代替の1問目を即出す
   if (passed && state.qcount === 0) {
-    const next = pickFirstQuestion(state.depth);
+    const next = pickFallbackOpener();
     if (next) {
       state.dialogue.push({ role: "a", text: "", passed: true });
-      state.dialogue.push({ role: "q", text: next });
+      state.dialogue.push({ role: "q", ack: "", text: next });
       save(); renderChat();
       const st = $("dig-status");
       st.textContent = "別の入口から聞きます。ピンとくるものが出るまでパスして大丈夫です。";
       setTimeout(() => { if (st.textContent.startsWith("別の入口")) st.textContent = ""; }, 3000);
       return;
     }
-    // プールを使い切ったらAPI経路（下の通常フロー）に落ちる
   }
 
-  if (!state.apiKey) {
-    // 回答を消さずにその場で止め、キー設定を促す（入力は失われない）
-    $("dig-error").textContent = "ここから先はAPIキーが必要です。下の「APIキー」を開いて設定してください（数円/回・このブラウザにのみ保存）。設定後、もう一度「答える」を押せば続きから進みます。";
+  // このターンで実際に呼ぶモデルのキーだけを要求する
+  // （パスは判定器を走らせない＝聞き手のキーのみ。混在構成で過剰ブロックしない）
+  const needed = passed ? [mAsk()] : [mJudge(), mAsk()];
+  let missing = null;
+  for (const m of needed) if (!keyFor(m)) { missing = providerName(m); break; }
+  if (missing) {
+    $("dig-error").textContent = `ここから先は ${missing} のAPIキーが必要です。下の「APIキー」を開いて設定してください（数円/回・このブラウザにのみ保存）。設定後、もう一度「答える」を押せば続きから進みます。`;
     $("key-box").open = true;
     return;
   }
 
+  // このターン開始前の状態を丸ごと退避する。判定→質問生成のどこかで失敗したら、
+  // 判定で進んだmarks/netadana/draftShown/qcountも含めて完全に巻き戻す。
+  // これをしないと「取り下げた回答由来の材料」が設計書に残る（＝ユーザー実回答のみ、の破れ）。
+  const snapshot = JSON.stringify(state);
   state.dialogue.push({ role: "a", text: passed ? "" : text, passed });
   if (!passed) state.qcount++;
   $("answer").value = "";
@@ -793,26 +1011,28 @@ async function submitAnswer(passed) {
 
   const st = $("dig-status");
   try {
-    // 3問ごと: 抽出 → チェックポイント提示（次の質問はユーザーが「もっと掘る」を押してから）
-    if (state.qcount > 0 && state.qcount % CHECKPOINT_EVERY === 0 && state.lastExtractedAt < state.qcount) {
-      st.innerHTML = '<span class="spin">◐</span> ここまでの対話から、設計書の断片を整理しています…';
-      await extract();
-    } else {
-      st.innerHTML = '<span class="spin">◐</span> 次の質問を考えています…';
-      await askNext();
+    // 1) 判定器（Sonnet）: ユーザー回答だけで採点・抽出・次の角度（パスのみのターンは材料が増えないのでスキップ）
+    let nextTarget = null;
+    if (!passed) {
+      st.innerHTML = '<span class="spin">◐</span> ここまでの回答を読み、材料を整理しています…';
+      nextTarget = await runJudge();
     }
+    // 2) 早期ドラフト判定
+    maybeRevealDraft();
+    // 3) 聞き手（Opus）: 次の質問
+    st.innerHTML = '<span class="spin">◐</span> 次の質問を考えています…';
+    await askNext(nextTarget);
   } catch (e) {
-    // 失敗したら回答を履歴から取り下げて入力欄に戻す。
-    // 「同じ質問に回答が2つ並ぶ」履歴破壊を防ぎ、そのまま再送できる
-    state.dialogue.pop();
-    if (!passed) state.qcount--;
-    $("answer").value = text;
+    // 全状態を回答前へ巻き戻す（marks/draftShown等の一貫性を保つ）。入力は欄に戻して再送可能に。
+    state = JSON.parse(snapshot);
     save();
-    $("dig-error").textContent = e.message + "（入力は戻してあります。もう一度「答える」で再送できます）";
+    $("answer").value = passed ? "" : text;
+    $("dig-error").textContent = e.message + "（入力は戻してあります。もう一度お試しください）";
+  } finally {
+    st.textContent = "";
+    isSubmitting = false;
+    renderChat();
   }
-  st.textContent = "";
-  isSubmitting = false;
-  renderChat();
 }
 $("send-btn").onclick = () => submitAnswer(false);
 $("pass-btn").onclick = () => submitAnswer(true);
@@ -820,64 +1040,147 @@ $("answer").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitAnswer(false);
 });
 
-async function askNext() {
-  const raw = await callClaude(socraticSystem(state.depth, state), dialogueToMessages(), {
-    maxTokens: 600,
-    // 想定問答の演技をAPI側でも物理停止する（後処理truncateRolePlayと二重防御）
-    stop: ["\nuser", "\nassistant", " user ", " assistant "],
-  });
-  const q = truncateRolePlay(raw);
-  if (!q) throw new Error("質問を取り出せませんでした。もう一度お試しください。");
-  state.dialogue.push({ role: "q", text: q });
-  save(); renderChat();
-}
+// 判定器を走らせ、marks/criteria/抽出物を更新。nextTargetのkeyを返す。
+async function runJudge() {
+  const transcript = userAnswersTranscript();
+  if (!transcript) return null;
+  const r = await callLLM(judgeSystem(state), [{ role: "user", content: transcript }],
+    // netadanaのquoteはユーザー発言の原文引用（音声入力の長文があり得る）+ 基準8件分の
+    // value/reason で2000は切断リスクがある。余裕を持たせる
+    { model: mJudge(), maxTokens: 4000, schema: JUDGE_SCHEMA });
 
-async function extract() {
-  const transcript = state.dialogue
-    .filter(m => m.role !== "sys") // 表示専用の通知は抽出材料に混ぜない
-    .map(m => (m.role === "q" ? "AI: " : "ユーザー: ") + (m.passed ? "（パス）" : m.text))
-    .join("\n");
-  const r = await callClaude(EXTRACT_SYSTEM, [{ role: "user", content: transcript }],
-    { maxTokens: 2000, schema: EXTRACT_SCHEMA });
-  // 設計書: 本人が手で保存した欄（sheetLocked[k]）は、空欄も含めてAIは一切触らない。
-  // 意図的に消した欄が抽出のたびに復活する事故を防ぐため。
-  // なお「AIは項目を消せない（空文字では上書きしない）」のは意図した設計:
-  // 削除の権限は本人だけが持つ（設計書タブで欄を空にして保存すればロックされ、復活もしない）
-  for (const [k] of SHEET_FIELDS) {
-    if (state.sheetLocked[k]) continue;
-    if (r.sheet[k]) state.sheet[k] = r.sheet[k];
+  // テーマ由来の追加基準を（重複なく）追加
+  const known = new Set(state.criteria.map(c => c.key));
+  for (const tc of (r.themeCriteria || [])) {
+    if (!tc || typeof tc.key !== "string" || known.has(tc.key) || CORE_KEYS.includes(tc.key)) continue;
+    known.add(tc.key);
+    state.criteria.push({ key: tc.key, label: tc.label || tc.key, desc: tc.desc || "", source: "theme" });
   }
-  if (!state.sheetLocked.voice && r.voice.tone) state.voice = r.voice;
+  // 各基準の採点。本人がロックした欄はAIが触らない。
+  for (const c of (r.criteria || [])) {
+    if (!c || typeof c.key !== "string" || !known.has(c.key) || state.locked[c.key]) continue;
+    const mark = MARK_ENUM.includes(c.mark) ? c.mark : "red";
+    state.marks[c.key] = { mark, value: c.value || "", reason: c.reason || "" };
+  }
+  // 声・やらないこと（ロックされていなければ）
+  if (!state.locked.voice && r.voice && (r.voice.tone || r.voice.firstPerson)) state.voice = r.voice;
+  if (!state.locked.yaranai && r.yaranai) state.aux.yaranai = r.yaranai;
+  // ネタ棚・言葉（重複除外で追記）
   const seen = new Set(state.netadana.map(n => n.quote));
   for (const n of (r.netadana || [])) {
-    if (!seen.has(n.quote)) state.netadana.push({ id: "n" + Date.now() + Math.floor(Math.random()*1e4), ...n });
+    if (n && n.quote && !seen.has(n.quote)) { seen.add(n.quote); state.netadana.push({ id: "n" + Date.now() + Math.floor(Math.random() * 1e4), title: n.title || "", quote: n.quote }); }
   }
-  for (const k of (r.kotoba || [])) if (!state.kotoba.includes(k)) state.kotoba.push(k);
-  state.lastExtractedAt = state.qcount;
-  // チェックポイントを直近メッセージに添付
-  state.dialogue[state.dialogue.length - 1].checkpoint = { sheet: { ...state.sheet }, kotoba: (r.kotoba || []) };
+  for (const k of (r.kotoba || [])) if (k && !state.kotoba.includes(k)) state.kotoba.push(k);
+  // 採点済みのユーザー回答数を記録（import後などの未判定回答を確定前に検出するため）
+  state.judgedCount = state.dialogue.filter(m => m.role === "a" && !m.passed && m.text).length;
+  save();
+
+  // 次の角度: 判定器のnextTargetを尊重しつつ、有効なkeyでなければ最弱の基準を選ぶ
+  let key = (r.nextTarget && known.has(r.nextTarget)) ? r.nextTarget : null;
+  if (!key) key = weakestCriterionKey();
+  state._draftReady = !!r.draftReady;
+  return key;
+}
+
+// 最も弱い基準（red優先、次yellow）のkeyを返す
+function weakestCriterionKey() {
+  const byMark = m => state.criteria.filter(c => markOf(c.key) === m).map(c => c.key);
+  const reds = byMark("red"), yellows = byMark("yellow");
+  return reds[0] || yellows[0] || (state.criteria[0] && state.criteria[0].key) || null;
+}
+
+// 早期ドラフト提示条件: コア基準の過半がgreen/yellow、または5問。判定器のdraftReadyも尊重。
+function maybeRevealDraft() {
+  if (state.draftShown) return;
+  const filled = CORE_KEYS.filter(k => markOf(k) !== "red").length;
+  if (filled >= Math.ceil(CORE_KEYS.length / 2) || state.qcount >= EARLY_DRAFT_Q || state._draftReady) {
+    state.draftShown = true;
+    save();
+  }
+}
+
+async function askNext(targetKey) {
+  const target = targetKey ? state.criteria.find(c => c.key === targetKey) : null;
+  const targetWithReason = target ? { ...target, reason: (state.marks[target.key] || {}).reason || "" } : null;
+  const r = await callLLM(askerSystem(state.depth, targetWithReason, state), askerMessages(),
+    // 600では本気深度の質問（仮説+確認の一文）+JSON構造で切断が起きた（実テスト1次確認）。
+    // 出力トークンは生成した分だけの課金なので、上限は余裕を持たせる
+    { model: mAsk(), maxTokens: 2000, schema: ASK_SCHEMA });
+  const question = (r.question || "").trim();
+  if (!question) throw new Error("質問を取り出せませんでした。もう一度お試しください。");
+  state.dialogue.push({ role: "q", ack: (r.ack || "").trim(), text: question, target: targetKey || "" });
   save(); renderChat();
 }
 
-$("finish-btn").onclick = async () => {
-  if (isSubmitting) return;
+// 本人選択の狙い撃ち深掘り: 未回答の質問を、指定基準を狙う質問に差し替える
+async function digCriterion(key) {
+  if (uiBusy()) return;
+  const last = state.dialogue[state.dialogue.length - 1];
+  if (!last || last.role !== "q") return; // 回答待ちの質問がなければ何もしない
+  if (!keyFor(mAsk())) { $("dig-error").textContent = `${providerName(mAsk())} のAPIキーが必要です。下の「APIキー」から設定してください。`; $("key-box").open = true; return; }
+  isSubmitting = true;
+  const st = $("dig-status");
+  st.innerHTML = '<span class="spin">◐</span> その材料を狙って質問を組み立てています…';
+  $("dig-error").textContent = "";
+  renderBoard();
+  try {
+    state.dialogue.pop(); // 未回答の質問を差し替える
+    await askNext(key);
+  } catch (e) {
+    state.dialogue.push(last); // 失敗したら元の質問を戻す
+    $("dig-error").textContent = e.message;
+  }
+  st.textContent = "";
+  isSubmitting = false;
+  renderChat();
+}
+
+// 「ここまでにする」/「この設計書で確定」
+async function finishDialogue() {
+  if (uiBusy()) return;
   if (!state.qcount) { showRoom("jiku"); return; }
-  if (state.lastExtractedAt < state.qcount && state.apiKey) {
+  // まだ判定していない回答が残っていれば（通常フロー漏れ or import）、締める前に判定する
+  const ansCount = state.dialogue.filter(m => m.role === "a" && !m.passed && m.text).length;
+  if (ansCount > (state.judgedCount || 0) && !keyFor(mJudge())) {
+    // キー不足で黙ってスキップすると、未整理の回答が設計書に反映されないまま確定してしまう
+    $("dig-error").textContent = `未整理の回答があります。判定には ${providerName(mJudge())} のAPIキーが必要です。下の「APIキー」から設定してください（確定は保留しました）。`;
+    $("key-box").open = true;
+    return;
+  }
+  if (ansCount > (state.judgedCount || 0)) {
     isSubmitting = true; updateControls();
     const st = $("dig-status");
-    st.innerHTML = '<span class="spin">◐</span> ここまでの対話を整理しています…';
-    try { await extract(); } catch (e) { $("dig-error").textContent = e.message; }
+    st.innerHTML = '<span class="spin">◐</span> ここまでの回答を整理しています…';
+    let ok = true;
+    try { await runJudge(); maybeRevealDraft(); }
+    catch (e) { $("dig-error").textContent = e.message + "（確定は保留しました。もう一度お試しください）"; ok = false; }
     st.textContent = "";
-    isSubmitting = false; updateControls();
+    isSubmitting = false;
+    renderChat();
+    // 判定に失敗したまま古いmarksで確定させない（判定保証の担保）
+    if (!ok) return;
+  }
+  // 🔴が残っていれば明示して確認（主権は本人。残しでも確定可）
+  const reds = CORE_KEYS.filter(k => markOf(k) === "red");
+  if (reds.length) {
+    const labels = reds.map(k => (CORE_CRITERIA.find(c => c.key === k) || {}).label).join("・");
+    if (!confirm(`🔴（まだ設計が立たない材料）が残っています: ${labels}\n\nこのまま設計書を確定しますか？\n（決めるのはあなたです。あとで「引き出す」に戻って掘り直すこともできます）`)) {
+      renderChat();
+      return;
+    }
   }
   showRoom("jiku");
-};
+}
+$("finish-btn").onclick = finishDialogue;
 
 // ---------- X URL 読み込み（任意・oEmbed） ----------
 $("xurl-btn").onclick = async () => {
+  if (uiBusy()) return;
   const url = $("xurl").value.trim();
   const st = $("xurl-status");
   if (!url) return;
+  // 取得の間ずっとロックを保持する（チェックだけでは await 中に回答送信が割り込む）。
+  isSubmitting = true; updateControls();
   st.textContent = "読み込み中…";
   try {
     const res = await fetch("https://publish.twitter.com/oembed?url=" + encodeURIComponent(url) + "&omit_script=true");
@@ -892,9 +1195,12 @@ $("xurl-btn").onclick = async () => {
     renderXposts();
   } catch (e) {
     st.textContent = "読み込めませんでした（鍵アカ・削除済みの可能性）。下の欄に本文を直接貼ってください。";
+  } finally {
+    isSubmitting = false; updateControls();
   }
 };
 $("xpaste-btn").onclick = () => {
+  if (uiBusy()) return; // 同上
   const t = $("xpaste").value.trim();
   if (!t) return;
   state.xposts.push(t); save();
@@ -908,28 +1214,48 @@ function renderXposts() {
 
 // ---------- APIキー ----------
 function renderKey() {
-  $("key-badge").textContent = state.apiKey ? "APIキー: 設定済み" : "APIキー: 未設定";
+  const parts = [];
+  if (state.apiKey) parts.push("Anthropic");
+  if (state.openaiKey) parts.push("OpenAI");
+  const custom = (state.models.ask || state.models.judge) ? "・モデル: カスタム" : "";
+  $("key-badge").textContent = (parts.length ? "APIキー: " + parts.join(" / ") + " 設定済み" : "APIキー: 未設定") + custom;
   $("api-key").value = state.apiKey;
+  $("openai-key").value = state.openaiKey;
+  $("model-ask").value = state.models.ask;
+  $("model-judge").value = state.models.judge;
 }
 $("key-save").onclick = () => {
+  if (uiBusy()) return; // API待機中・ペルソナ走行中の状態変更を禁止
   state.apiKey = $("api-key").value.trim();
+  state.openaiKey = $("openai-key").value.trim();
+  state.models.ask = $("model-ask").value.trim();
+  state.models.judge = $("model-judge").value.trim();
   save(); renderKey();
+  $("key-saved").textContent = "保存しました";
+  setTimeout(() => $("key-saved").textContent = "", 2000);
 };
 
 // ---------- 部屋2: 設計書 ----------
-const SHEET_INPUT_IDS = {
-  tamashiiOmote: "sh-omote", tamashiiUra: "sh-ura", keifu: "sh-keifu",
-  tsumazuki: "sh-tsumazuki", who: "sh-who", what: "sh-what", why: "sh-why", yaranai: "sh-yaranai",
-};
 function renderJiku() {
-  for (const [key, id] of Object.entries(SHEET_INPUT_IDS)) $(id).value = state.sheet[key];
-  $("voice-tone").value = state.voice.tone;
-  $("jiku-badge").textContent = Object.keys(state.sheetLocked).length ? "あなたの言葉" : "仮説";
+  const box = $("sheet-fields");
+  box.innerHTML = "";
+  for (const c of state.criteria) {
+    const m = state.marks[c.key] || {};
+    const lab = el("label", null, MARK_EMOJI[markOf(c.key)] + " " + c.label + " — " + c.desc);
+    const ta = el("textarea", "sheet-ta");
+    ta.id = "sf-" + c.key;
+    ta.value = m.value || "";
+    ta.placeholder = "（対話から推定されます）";
+    box.appendChild(lab);
+    box.appendChild(ta);
+  }
+  $("voice-tone").value = state.voice.tone || "";
+  $("sh-yaranai").value = state.aux.yaranai || "";
+  $("jiku-badge").textContent = (state.simulated ? "🎭シミュレーション・" : "") + (Object.keys(state.locked).length ? "あなたの言葉" : "仮説");
+
   const list = $("neta-list");
   list.innerHTML = "";
-  if (!state.netadana.length) {
-    list.appendChild(el("p", "empty", "まだ空です。「引き出す」の対話から自動で貯まります。"));
-  }
+  if (!state.netadana.length) list.appendChild(el("p", "empty", "まだ空です。「引き出す」の対話から自動で貯まります。"));
   for (const n of state.netadana) {
     const card = el("div", "neta-card sans");
     card.appendChild(el("div", "t", n.title));
@@ -939,32 +1265,41 @@ function renderJiku() {
     const w = el("button", "ghost", "これで1本書く");
     w.onclick = () => { showRoom("write"); $("write-input").value = `${n.title}\n${n.quote}`; };
     const d = el("button", "ghost", "削除");
-    d.onclick = () => { state.netadana = state.netadana.filter(x => x.id !== n.id); save(); renderJiku(); };
+    d.onclick = () => { if (uiBusy()) return; state.netadana = state.netadana.filter(x => x.id !== n.id); save(); renderJiku(); };
     row.append(w, d);
     card.appendChild(row);
     list.appendChild(card);
   }
 }
 $("jiku-save").onclick = () => {
-  for (const [key, id] of Object.entries(SHEET_INPUT_IDS)) {
-    state.sheet[key] = $(id).value.trim();
-    state.sheetLocked[key] = true; // 本人が保存した欄はAIが上書きしない
+  if (uiBusy()) return; // API待機中・ペルソナ走行中の保存を禁止（巻き戻し競合＋全ロック事故を防ぐ）
+  for (const c of state.criteria) {
+    const v = $("sf-" + c.key).value.trim();
+    const prev = state.marks[c.key] || { mark: "green", value: "", reason: "" };
+    // 本人が保存＝その欄はロック（AIが上書きしない）。中身があれば🟢扱い。
+    state.marks[c.key] = { mark: v ? "green" : prev.mark, value: v, reason: v ? "" : prev.reason };
+    state.locked[c.key] = true;
   }
   state.voice.tone = $("voice-tone").value.trim();
-  state.sheetLocked.voice = true;
+  state.aux.yaranai = $("sh-yaranai").value.trim();
+  state.locked.voice = true;
+  state.locked.yaranai = true;
   save();
+  renderJiku();
   $("jiku-badge").textContent = "あなたの言葉";
   $("jiku-saved").textContent = "保存しました";
   setTimeout(() => $("jiku-saved").textContent = "", 2000);
 };
 $("sheet-copy").onclick = async () => {
-  // 保存済みstateではなく編集中の入力値をコピーする（保存し忘れの古い内容を配らない）
   const lines = ["# 私のコンセプト設計書（軸オープンで作成）", ""];
-  for (const [key, label] of SHEET_FIELDS) {
-    lines.push(`## ${label}`, $(SHEET_INPUT_IDS[key]).value.trim() || "（まだ空）", "");
+  if (state.theme) lines.push("## 北極星", state.theme, "");
+  for (const c of state.criteria) {
+    lines.push(`## ${c.label}`, ($("sf-" + c.key)?.value.trim()) || (state.marks[c.key] || {}).value || "（まだ空）", "");
   }
   const tone = $("voice-tone").value.trim();
   if (tone) lines.push("## 声", tone, "");
+  const yaranai = $("sh-yaranai").value.trim();
+  if (yaranai) lines.push("## やらないこと", yaranai, "");
   await navigator.clipboard.writeText(lines.join("\n"));
   $("jiku-saved").textContent = "コピーしました";
   setTimeout(() => $("jiku-saved").textContent = "", 2000);
@@ -972,9 +1307,9 @@ $("sheet-copy").onclick = async () => {
 
 // ---------- 部屋3: 書く（設計書ができてからのおまけ） ----------
 function sheetHasCore() {
-  // ゲートの鍵は魂（①表裏いずれか）。軸だけ埋まっていても魂が空なら、このツールの主張が成立しない
-  const s = state.sheet;
-  return !!(s.tamashiiOmote || s.tamashiiUra);
+  // ゲートの鍵は魂（①表裏いずれか）に材料がある＝markに value があること
+  const o = state.marks.tamashiiOmote, u = state.marks.tamashiiUra;
+  return !!((o && o.value) || (u && u.value));
 }
 function renderWrite() {
   const gated = !sheetHasCore();
@@ -998,15 +1333,15 @@ $("gate-to-dig").onclick = () => showRoom("dig");
 $("write-btn").onclick = async () => {
   const input = $("write-input").value.trim();
   $("write-error").textContent = "";
-  if (!state.apiKey) { $("write-error").textContent = "APIキーが未設定です。「引き出す」タブの下部で設定してください。"; return; }
+  if (!keyFor(mAsk())) { $("write-error").textContent = `${providerName(mAsk())} のAPIキーが未設定です。「引き出す」タブの下部で設定してください。`; return; }
   if (!input) { $("write-error").textContent = "腹にあるものを書いてください。一言でも構いません。"; return; }
   const st = $("write-status"); const btn = $("write-btn");
   st.innerHTML = '<span class="spin">◐</span> あなたの言葉を整えています…（10〜20秒）';
   btn.disabled = true;
   try {
-    const r = await callClaude(writeSystem(state),
+    const r = await callLLM(writeSystem(state),
       [{ role: "user", content: "## 生の思考\n" + input }],
-      { maxTokens: 3000, schema: WRITE_SCHEMA });
+      { model: mAsk(), maxTokens: 4000, schema: WRITE_SCHEMA });
     const box = $("drafts");
     box.innerHTML = "";
     for (const d of r.drafts) {
@@ -1034,12 +1369,13 @@ $("write-btn").onclick = async () => {
 };
 
 $("show-prompt").onclick = () => {
+  const target = state.criteria.find(c => c.key === weakestCriterionKey()) || null;
   const parts = [
-    "=== 部屋1【引き出す】対話の指示（現在の深度・状態で生成） ===",
-    socraticSystem(state.depth || "normal", state),
+    "=== 部屋1【引き出す】聞き手（Opus）の指示（現在の深度・状態で生成） ===",
+    askerSystem(state.depth || "normal", target, state),
     "",
-    "=== 部屋1【引き出す】3問ごとの設計書抽出の指示 ===",
-    EXTRACT_SYSTEM,
+    "=== 部屋1【引き出す】判定器（Sonnet）の指示（毎ターン・ユーザー回答だけを材料に採点/抽出） ===",
+    judgeSystem(state),
     "",
     "=== 部屋3【書く】の指示（現在の設計書・文体で生成） ===",
     writeSystem(state),
@@ -1050,7 +1386,7 @@ $("show-prompt").onclick = () => {
 
 // ---------- データ管理 ----------
 $("export-btn").onclick = () => {
-  const data = { ...state, apiKey: "" };
+  const data = { ...state, apiKey: "", openaiKey: "" };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -1062,17 +1398,25 @@ $("import-btn").onclick = () => $("import-file").click();
 $("import-file").onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
+  if (uiBusy()) { e.target.value = ""; return; }
+  // 読み込みの間ずっとロックを保持する（f.text() の await 中に回答送信で state が差し替わるのを防ぐ）。
+  isSubmitting = true; updateControls();
   try {
     const data = JSON.parse(await f.text());
-    if (!data || !Array.isArray(data.dialogue)) throw new Error("形式が違います");
-    const key = state.apiKey;
-    state = normalize(data); state.apiKey = key;
-    save(); initRender();
+    if (!data || typeof data !== "object") throw new Error("形式が違います");
+    const keys = { apiKey: state.apiKey, openaiKey: state.openaiKey };
+    state = normalize(data); state.apiKey = keys.apiKey; state.openaiKey = keys.openaiKey;
+    save(); isSubmitting = false; initRender();
     alert("読み込みました");
-  } catch (err) { alert("読み込みに失敗しました: " + err.message); }
-  e.target.value = "";
+  } catch (err) {
+    alert("読み込みに失敗しました: " + err.message);
+  } finally {
+    isSubmitting = false; e.target.value = "";
+    updateControls();
+  }
 };
 function wipeAll() {
+  if (uiBusy()) return; // API待機中・ペルソナ走行中の全削除を禁止
   if (!confirm("対話・設計書・ネタ棚・APIキーを含む全データを、このブラウザから削除します。よろしいですか？")) return;
   localStorage.removeItem(STORE_KEY);
   state = load();
@@ -1082,32 +1426,131 @@ function wipeAll() {
 $("wipe-btn").onclick = wipeAll;
 $("wipe-btn-dig").onclick = wipeAll;
 
-// 「最初からやり直す」: 対話と、そこから引き出したもの（設計書・声・ネタ棚・言葉）をリセット。
-// APIキーと読み込んだX投稿は残す（毎回のキー再入力を強いない）。
-// 設計書・ネタ棚を残すと次の対話のsystem promptに前回の文脈が混入するため、まとめて消す。
+// 「最初からやり直す」: 対話と、そこから引き出したもの（設計書・声・ネタ棚）をリセット。
+// APIキーと読み込んだX投稿は残す。
 function restartDialogue() {
-  if (isSubmitting) return;
-  if (!confirm("いまの対話と、そこから引き出した設計書・ネタ棚・言葉を消して、最初からやり直します。\n（APIキーと読み込んだX投稿は残ります。設計書を残したい場合は、先に「設計書」の部屋でコピーかデータ書き出しをしてください）")) return;
-  const kept = { apiKey: state.apiKey, xposts: state.xposts };
+  if (uiBusy()) return;
+  if (!confirm("いまの対話と、そこから引き出した設計書・ネタ棚を消して、最初からやり直します。\n（APIキーと読み込んだX投稿は残ります。設計書を残したい場合は、先に「設計書」でコピーかデータ書き出しをしてください）")) return;
+  const kept = { apiKey: state.apiKey, openaiKey: state.openaiKey, models: state.models, persona: state.persona, xposts: state.xposts };
   state = defaults();
   state.apiKey = kept.apiKey;
+  state.openaiKey = kept.openaiKey;
+  state.models = kept.models;
+  state.persona = kept.persona;
   state.xposts = kept.xposts;
   save();
   initRender();
+  showRoom("dig");
 }
 $("restart-btn").onclick = restartDialogue;
 
+// ---------- 🎭 テスト走行（ペルソナ被験者）のUI ----------
+function personaModelId() { return (state.persona.model || "").trim() || mJudge(); }
+function readPersonaFields() {
+  state.persona.spec = $("persona-spec").value.trim();
+  state.persona.journey = $("persona-journey").value.trim();
+  state.persona.model = $("persona-model").value.trim();
+  const t = parseInt($("persona-turns").value, 10);
+  state.persona.turns = Number.isFinite(t) ? Math.max(1, Math.min(15, t)) : 7;
+  save();
+}
+function renderPersona() {
+  $("persona-spec").value = state.persona.spec;
+  $("persona-journey").value = state.persona.journey;
+  $("persona-model").value = state.persona.model;
+  $("persona-turns").value = String(state.persona.turns);
+}
+
+// ①人物を深める: 設定→半生ジャーニー生成（編集可）
+$("persona-deepen").onclick = async () => {
+  if (isSubmitting || personaRunning) return;
+  readPersonaFields();
+  const st = $("persona-deepen-status");
+  if (!state.persona.spec) { st.textContent = "先に人物設定を書いてください。"; return; }
+  const pm = personaModelId();
+  if (!keyFor(pm)) { st.textContent = `${providerName(pm)} のAPIキーが必要です（上の「APIキー」から）。`; return; }
+  st.textContent = "作り込み中…";
+  try {
+    const journey = await callLLM(PERSONA_DEEPEN_SYSTEM,
+      [{ role: "user", content: state.persona.spec }],
+      { model: pm, maxTokens: 3000 });
+    state.persona.journey = journey;
+    save(); renderPersona();
+    st.textContent = "できました。手直しして使えます。";
+  } catch (e) { st.textContent = e.message; }
+};
+
+// ②自動で走らせる / 停止
+$("persona-run").onclick = () => {
+  if (personaRunning) { personaRunning = false; $("persona-status").textContent = "停止します…（今の1問まで）"; return; }
+  runPersonaTest();
+};
+async function runPersonaTest() {
+  if (isSubmitting) return;
+  readPersonaFields();
+  const st = $("persona-status");
+  if (!state.persona.spec) { st.textContent = "先に人物設定を書いてください。"; return; }
+  const pm = personaModelId();
+  for (const m of [pm, mAsk(), mJudge()]) {
+    if (!keyFor(m)) { st.textContent = `${providerName(m)} のAPIキーが必要です（上の「APIキー」から）。`; return; }
+  }
+  if (!state.started) startDialogue(); // テーマ未入力なら汎用の1問目から
+  personaRunning = true;
+  updateControls(); // 最初のLLM待ち中から手動操作をロック
+  state.simulated = true; // 🎭 この走行のデータは本人の言葉ではない
+  save();
+  $("persona-run").textContent = "停止";
+  $("dig-error").textContent = "";
+  try {
+    for (let i = 0; i < state.persona.turns && personaRunning; i++) {
+      const last = state.dialogue[state.dialogue.length - 1];
+      if (!last || last.role !== "q") break; // 回答待ちの質問がなければ終了
+      st.textContent = `🎭 ${i + 1}/${state.persona.turns} 問目に回答中…`;
+      const r = await callLLM(personaSystem(state.persona.spec, state.persona.journey),
+        personaMessages(), { model: pm, maxTokens: 1500, schema: PERSONA_SCHEMA });
+      const ans = (r.answer || "").trim();
+      if (!ans) break;
+      $("answer").value = ans;
+      await submitAnswer(false, true); // 判定→次の質問まで通常フローに乗せる（ロールバック等も共通）
+      if ($("dig-error").textContent) break; // エラーで停止（入力は戻っている）
+    }
+  } catch (e) {
+    $("dig-error").textContent = e.message;
+  } finally {
+    personaRunning = false;
+    $("persona-run").textContent = "②自動で走らせる";
+    st.textContent = state.dialogue.some(m => m.role === "a") ? "走行を終えました。ボードと「設計書」で結果を確認できます。" : "";
+    renderChat();
+  }
+}
+
+// ---------- テーマ候補チップ ----------
+(function renderThemeChips() {
+  const box = $("theme-chips");
+  for (const t of THEME_CHIPS) {
+    const chip = el("button", "chip", t);
+    chip.onclick = () => {
+      const ta = $("theme-input");
+      ta.value = ta.value.trim() ? ta.value.trim() + "\n" + t : t;
+      ta.focus();
+    };
+    box.appendChild(chip);
+  }
+})();
+
 // ---------- 初期描画 ----------
 function initRender() {
-  renderKey(); renderXposts(); renderJiku(); renderWrite();
+  renderKey(); renderXposts(); renderJiku(); renderWrite(); renderPersona();
   if (state.started) {
-    $("depth-select").hidden = true;
+    $("theme-select").hidden = true;
     $("answer-area").hidden = false;
     renderChat();
   } else {
-    $("depth-select").hidden = false;
+    $("theme-select").hidden = false;
     $("answer-area").hidden = true;
     $("chat").innerHTML = "";
+    $("board").hidden = true;
+    $("theme-input").value = state.theme || "";
   }
 }
 initRender();
